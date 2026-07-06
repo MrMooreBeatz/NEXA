@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+env/
+venv/
+
+# Local config/secrets
+*.pem
+*.key
+access_token*
+
+# Operating-system files
+Thumbs.db
+.DS_Store
+
+# Large local models/caches
+.cache/
+models/
+
+# Text editor/dir
+.vscode/
+.idea/
+
+# Local uploads/data
+uploads/
+NEXA/database/*
+!NEXA/database/.gitkeep
+07-operations/memory/chroma/*
+!NEXA/memory/.gitkeep
