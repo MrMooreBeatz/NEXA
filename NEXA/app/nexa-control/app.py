@@ -1,8 +1,16 @@
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, session, jsonify, request, send_from_directory
-from flask_compress import Compress
 import os, json, traceback
+
+try:
+    from flask_compress import Compress
+except Exception:  # pragma: no cover - fallback when package unavailable
+    class _DummyCompress:
+        def __init__(self, app=None):
+            if app is not None:
+                self.app = app
+    Compress = _DummyCompress  # type: ignore[misc,assignment]
 
 BASE = Path(__file__).resolve().parent
 APP_PATH = BASE / "app"
@@ -12,6 +20,7 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["JSON_SORT_KEYS"] = False
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "nexa-control-local-session-key")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
+app.config["COMPRESS_MIN_SIZE"] = 1
 Compress(app)
 
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
