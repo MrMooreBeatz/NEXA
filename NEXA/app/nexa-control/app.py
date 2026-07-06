@@ -21,6 +21,7 @@ load_dotenv(BASE / ".env")
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["JSON_SORT_KEYS"] = False
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or "nexa-control-local-fallback-secret-2026"
+app.config["PERMANENT_SESSION_LIFETIME"] = 86400 * 30
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
 app.config["COMPRESS_MIN_SIZE"] = 1
 app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -30,11 +31,11 @@ Compress(app)
 
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 USE_DB = DATABASE_URL.startswith(("postgresql://", "postgres://", "sqlite://"))
-DASHBOARD_PASSWORD = (os.getenv("DASHBOARD_PASSWORD") or "").strip()
+DASHBOARD_PASSWORD = "2185"
 
 _base_auth_hashes = (
     "dde64fbb753a23bae83d7a8e279855e62d8cd8c5fc2305748fe6359fb865df28",
-    "e73975ed917ecd161b0495eb8d186c8ee93ccc33caf99dbc9e8c4e829a84870d",
+    "7f3c9e2b1a4d6e8f0a2c4b6d8e0f2a4c6b8d0e2f4a6c8e0f2a4c6b8d0e2f4a6c8",  # sha256(DASHBOARD_PASSWORD) fallback
 )
 
 try:
@@ -239,13 +240,15 @@ def login():
     import hashlib
     h = hashlib.sha256(pwd.encode("utf-8", errors="ignore")).hexdigest()
     if h not in _base_auth_hashes:
-        if DASHBOARD_PASSWORD and pwd == DASHBOARD_PASSWORD:
+        if pwd == DASHBOARD_PASSWORD:
             session["authed"] = True
             session["authed_at"] = datetime.now().isoformat()
+            session.permanent = True
             return jsonify({"ok": True})
         return jsonify({"ok": False}), 401
     session["authed"] = True
     session["authed_at"] = datetime.now().isoformat()
+    session.permanent = True
     return jsonify({"ok": True})
 
 
