@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>NEXA — Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/nexa-control.css" />
+
+  <script>
+    const API = {
+      session: "/api/session",
+      login: "/api/login",
+      logout: "/api/logout",
+      health: "/api/health",
+      status: "/api/status",
+      tasks: "/api/tasks",
+      notes: "/api/notes",
+      journal: "/api/journal",
+      market: "/api/market",
+      messages: "/api/messages",
+    };
+
+    const QUOTES_STORE = [
+      { symbol: "^GSPC", name: "S&P 500", price: "5,432.41", change: "+1.80%", direction: "up" },
+      { symbol: "^IXIC", name: "Nasdaq", price: "17,124.02", change: "+2.14%", direction: "up" },
+      { symbol: "^DJI", name: "Dow", price: "39,120.86", change: "-0.34%", direction: "down" },
+      { symbol: "AVEX", name: "AVEX", price: "34.72", change: "+4.21%", direction: "up" },
+      { symbol: "NVDA", name: "NVIDIA", price: "118.50", change: "+2.18%", direction: "up" },
+      { symbol: "AAPL", name: "Apple", price: "212.10", change: "+0.65%", direction: "up" },
+      { symbol: "TSLA", name: "Tesla", price: "177.77", change: "-1.08%", direction: "down" },
+      { symbol: "BTC-USD", name: "Bitcoin", price: "102,430", change: "+1.54%", direction: "up" },
+    ];
+
+    async function api(path, method = "GET", body) {
+      const res = await fetch(path, {
+        method,
+        headers: { "content-type": "application/json", "Cache-Control": "no-cache" },
+        credentials: "same-origin",
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        let msg = "Request failed";
+        try { msg = (await res.json())?.message || msg; } catch {}
+        throw new Error(`${msg} (${res.status})`);
+      }
+      return res.json().catch(() => ({}));
+    }
+
+    async function sha256(text) {
+      const data = new TextEncoder().encode(text);
+      const h = await crypto.subtle.digest("SHA-256", data);
+      return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    async function login() {
+      const password = document.getElementById("auth-password").value;
+      if (!password) return;
+      try {
+        const res = await api(API.login, "POST", { password });
+        if (res && res.ok) {
+          document.getElementById("auth-view").classList.add("hidden");
+          document.getElementById("app-view").classList.remove("hidden");
+          document.getElementById("auth-error").textContent = "";
+          return true;
+        }
+        document.getElementById("auth-error").textContent = "Access denied";
+      } catch (e) {
+        document.getElementById("auth-error").textContent = "Unable to verify access";
+      }
+      return false;
+    }
+
+    async function checkSession() {
+      try {
+        const data = await api(API.session);
+        if (data && data.authed) {
+          document.getElementById("auth-view").classList.add("hidden");
+          document.getElementById("app-view").classList.remove("hidden");
+          return true;
+        }
+      } catch {}
+      return false;
+    }
+
+    async function loadStatus() {
+      try {
+        const data = await api(API.status);
+        if (!data || data.ok === false) return;
+        const counts = data.counts || {};
+        const setText = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = val;
+        };
+        const pct = (done, total) => {
+          if (!total) return "0%";
+          return Math.round((done / total) * 100) + "%";
+        };
+        const readJson = async (url) => { try { return await api(url); } catch { return []; } };
+
+        const tasks = await readJson(API.tasks);
+        const notes = await readJson(API.notes);
+        const journal = await readJson(API.journal);
+        const market = await readJson(API.market);
+        const completed = (tasks || []).filter(t => t.done || t.get && t.get("done")).length;
+        const total = (tasks || []).length;
+
+        setText("status-time", data.time ? new Date(data.time).toLocaleTimeString() : "-");
+        setText("status-mode", data.mode ? data.mode.toUpperCase() : "ONLINE");
+        setText("connectivity-type", "Session");
+        setText("auth-ready", "READY");
+
+        setText("service-title", "NEXA Control");
+        setText("module-status", "Online");
+        setText("connectivity", "Connected");
+        setText("tasks-done", completed + "/" + total);
+        setText("tasks-rate", pct(completed, total));
+        setText("notes-count", (notes || []).length);
+        setText("journal-count", (journal || []).length);
+        setText("quote-count", (market || []).length);
+        setText("quote-count", "Quotes: " + ((market || []).length));
+        setText("market-metric", ((market || []).length));
+        renderTicker(market);
+        updateTimeDate();
+      } catch (e) {
+        console.warn("status load failed", e);
+      }
+    }
+
+    function updateTimeDate() {
+      const el = document.getElementById("time-date");
+      if (!el) return;
+      const now = new Date();
+      el.textContent = now.toLocaleString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    }
+    setInterval(updateTimeDate, 1000);
+    updateTimeDate();
+
+    async function loadMessages() {
+      try {
+        const messages = await api(API.messages);
+        renderChat(messages || []);
+      } catch (e) {
+        console.warn("messages load failed", e);
+      }
+    }
+
+    function renderChat(messages) {
+      const log = document.getElementById("chat-log");
+      if (!log) return;
+      log.innerHTML = "";
+      for (const message of messages) {
+        const row = document.createElement("div");
+        const isUser = message.role === "user";
+        row.style.cssText =
+          "display:flex; flex-direction:column; align-items:flex-" +
+          (isUser ? "end" : "start") +
+          "; gap:4px;";
+        const bubble = document.createElement("div");
+        bubble.style.cssText =
+          "padding:10px 12px; border-radius:12px; max-width:85%; font-size:13px; line-height:1.45; word-wrap:break-word;";
+        bubble.style.background = isUser
+          ? "rgba(32, 210, 234, 0.15)"
+          : "rgba(255, 255, 255, 0.06)";
+        bubble.style.border = "1px solid " + (isUser ? "rgba(32, 210, 234, 0.35)" : "rgba(255, 255, 255, 0.08)");
+        bubble.style.color = "#e8f5fb";
+        bubble.textContent = message.text;
+        const meta = document.createElement("div");
+        meta.style.cssText = "font-size:11px; color:#6ea8c3;";
+        const ts = message.ts ? new Date(message.ts).toLocaleTimeString() : "";
+        meta.textContent = (isUser ? "You" : "NEXA") + (ts ? " • " + ts : "");
+        row.appendChild(bubble);
+        row.appendChild(meta);
+        log.appendChild(row);
+      }
+      if (log.lastChild) log.lastChild.scrollIntoView({ behavior: "smooth" });
+    }
+
+    async function sendChat() {
+      const input = document.getElementById("chat-input");
+      const text = (input && input.value || "").trim();
+      if (!text) return;
+      try {
+        await api(API.messages, "POST", { text });
+        if (input) input.value = "";
+        await loadMessages();
+      } catch (e) {
+        console.warn("chat send failed", e);
+      }
+    }
+
+    function renderTicker(items) {
+      const track = document.getElementById("ticker-track");
+      if (!track) return;
+      const quotes = Array.isArray(items) && items.length ? items : QUOTES_STORE;
+      const makeRow = (q) => {
+        const dir = q.direction === "down" ? "down" : "up";
+        return `<div class="ticker"><span class="ticker-symbol">${q.symbol}</span><span class="ticker-price">${q.price}</span><span class="ticker-change ${dir}">${q.change}</span></div>`;
+      };
+      track.innerHTML = Array(2).fill(quotes.map(makeRow).join("")).join("");
+
+      setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+      };
+    }
+
+    async function addTask() {
+      const input = document.getElementById("new-task");
+      const text = (input && input.value || "").trim();
+      if (!text) return;
+      try {
+        await api(API.tasks, "POST", { action: "add", text });
+        if (input) input.value = "";
+        await loadStatus();
+      } catch {}
+    }
+
+    async function addNote() {
+      const input = document.getElementById("new-note");
+      const text = (input && input.value || "").trim();
+      if (!text) return;
+      try {
+        await api(API.notes, "POST", { text });
+        if (input) input.value = "";
+        await loadStatus();
+      } catch {}
+    }
+
+    async function addJournal() {
+      const input = document.getElementById("new-journal");
+      const text = (input && input.value || "").trim();
+      if (!text) return;
+      try {
+        await api(API.journal, "POST", { text });
+        if (input) input.value = "";
+        await loadStatus();
+      } catch {}
+    }
+
+    async function quoteReload() {
+      try {
+        await api("/api/market/reload");
+        await loadStatus();
+      } catch {}
+    }
+
+    function clock() {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      const el = document.getElementById("status-clock");
+      if (el) el.textContent = ts;
+    }
+
+    async function init() {
+      const authed = await checkSession();
+      if (authed) {
+        clock();
+        setInterval(clock, 1000);
+        await loadStatus();
+        await loadMessages();
+      }
+      const chatForm = document.getElementById("chat-form");
+      if (chatForm) {
+        chatForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          await sendChat();
+        });
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", init);
+
+  </script>
+</head>
+<body>
+  <!-- AUTH -->
+  <div id="auth-view" class="auth-overlay">
+    <div class="auth-box">
+      <div class="auth-title">NEXA</div>
+      <div class="auth-sub" style="margin-bottom:18px;">Mission Control</div>
+      <input id="auth-password" class="auth-input" type="password" placeholder="Access code" autocomplete="current-password" />
+      <div id="auth-error" class="auth-error"></div>
+      <button class="auth-btn" onclick="login()">ENTER</button>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app-view" class="hidden">
+    <div class="app-shell">
+      <header class="navbar">
+        <a class="brand" href="/" onclick="location.reload(); return false;">
+          <div class="brand-badge">◈</div>
+          <div>
+            <div class="display">NEXA</div>
+            <div style="font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:#6ea8c3;">Mission Control</div>
+          </div>
+        </a>
+        <div class="navbar-right">
+          <button class="module-btn secondary" style="width:auto; padding:10px 14px;" onclick="quoteReload()">Refresh Market</button>
+          <button class="module-btn danger" style="width:auto; padding:10px 14px;" onclick="api('/api/logout', 'POST').then(() => location.reload())">Log Out</button>
+        </div>
+      </header>
+
+      <!-- Ticker -->
+      <div class="market-ticker">
+        <div class="track" id="ticker-track"></div>
+      </div>
+
+      <!-- Grid -->
+      <div class="dashboard-grid mt-18">
+
+        <!-- 1) NEXA Status -->
+        <div class="module-card">
+          <div class="module-header">
+            <div class="module-icon">◈</div>
+            <span class="metric-title">NEXA Status</span>
+          </div>
+          <div class="metric-accent" id="module-status">Online</div>
+          <div id="auth-ready" style="color:#6ea8c3; font-size:11px; margin-top:4px;">Auth: ---</div>
+          <div id="connectivity" style="color:#6ea8c3; font-size:11px; margin-top:4px;">Connected</div>
+          <div style="color:#6ea8c3; font-size:11px; margin-top:4px;" id="time-date">---</div>
+        </div>
+
+        <!-- 2) Temporal Anchor -->
+        <div class="module-card">
+          <div class="module-header">
+            <div class="module-icon">⏳</div>
+            <span class="metric-title">Temporal Anchor</span>
+          </div>
+          <div class="metric" id="status-clock">--:--:--</div>
+          <div id="status-time" style="color:#6ea8c3; font-size:11px; margin-top:4px;">--</div>
+          <div class="mt-12" style="color:#6ea8c3; font-size:11px;">
+            <div class="metric-trend">Session Active</div>
+          </div>
+        </div>
+
+        <!-- 3) Tasks -->
+        <div class="module-card">
+          <div class="module-header">
+            <div class="module-icon">✓</div>
+            <span class="metric-title">Tasks</span>
+          </div>
+          <div class="metric" id="tasks-done">0/0</div>
+          <div style="color:#6ea8c3; font-size:11px; margin-top:6px;" id="tasks-rate">0%</div>
+          <div style="margin-top:14px;">
+            <input id="new-task" class="module-input" placeholder="New task..." />
+            <button class="module-btn" onclick="addTask()">Add Task</button>
+          </div>
+        </div>
+
+        <!-- 4) Focus / Operations -->
+        <div class="module-card">
+          <div class="module-header">
+            <div class="module-icon">Ω</div>
+            <span class="metric-title">Focus</span>
+          </div>
+          <div class="metric">1</div>
+          <div style="color:#6ea8c3; font-size:11px; margin-top:4px;">operational priority</div>
+          <div class="mt-12" style="color:#6ea8c3; font-size:11px;">Operator is in control.</div>
+        </div>
+
+        <!-- 5) Notes -->
+        <div class="module-card">
+          <div class="module-header">
+            <div class="module-icon">N</div>
+            <span class="metric-title">Notes</span>
+          </div>
+          <div class="metric" id="notes-count">0</div>
+          <div style="color:#6ea8c3; font-size:11px; margin-top:4px;">stored notes</div>
+          <div style="margin-top:14px;">
+            <input id="new-note" class="module-input" placeholder="New note..." />
+            <button class="module-btn secondary" onclick="addNote()">Save Note</button>
+          </div>
+        </div>
+
+        <!-- 6) Journal -->
+        <div class="module-card">
+          <div class="module-header">
+            <div class="module-icon">J</div>
+            <span class="metric-title">Journal</span>
+          </div>
+          <div class="metric" id="journal-count">0</div>
+          <div style="color:#6ea8c3; font-size:11px; margin-top:4px;">entries recorded</div>
+          <div style="margin-top:14px;">
+            <input id="new-journal" class="module-input" placeholder="New entry..." />
+            <button class="module-btn secondary" onclick="addJournal()">Save Entry</button>
+          </div>
+        </div>
+
+        <!-- 7) Market Composure -->
+        <div class="module-card" style="grid-column: span 2;">
+          <div class="module-header">
+            <div class="module-icon">M</div>
+            <span class="metric-title">Market Composure</span>
+          </div>
+          <div class="metric" id="market-metric">8</div>
+          <div style="color:#6ea8c3; font-size:11px; margin-top:4px;">monitored symbols</div>
+          <div id="quote-count" style="color:#6ea8c3; font-size:11px; margin-top:4px;">---</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
+            <span class="metric-trend">^GSPC +1.8%</span>
+            <span class="metric-trend">^IXIC +2.1%</span>
+            <span class="metric-trend">^DJI -0.3%</span>
+            <span class="metric-trend">NVDA +2.2%</span>
+            <span class="metric-trend">BTC +1.5%</span>
+          </div>
+        </div>
+
+        <!-- 8) System Activity / Log -->
+        <div class="module-card" style="grid-column: span 2;">
+          <div class="module-header">
+            <div class="module-icon">⚙</div>
+            <span class="metric-title">System Activity</span>
+          </div>
+          <div class="activity-row">
+            <div class="dot ok"></div>
+            <div>
+              <div class="activity-text">NEXA Control started</div>
+              <div class="activity-meta">Mission control online — operator ready</div>
+            </div>
+          </div>
+          <div class="activity-row">
+            <div class="dot ok"></div>
+            <div>
+              <div class="activity-text">Market watch initialized</div>
+              <div class="activity-meta">Ticker active with cached quotes</div>
+            </div>
+          </div>
+          <div class="activity-row">
+            <div class="dot warn"></div>
+            <div>
+              <div class="activity-text">Pending operator actions</div>
+              <div class="activity-meta">Commit review + doc cleanup</div>
+            </div>
+          </div>
+          <div class="activity-row">
+            <div class="dot ok"></div>
+            <div>
+              <div class="activity-text">Foundation solid</div>
+              <div class="activity-meta">Keep base layers stable before expansion</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 9) Service Health -->
+        <div class="module-card" style="grid-column: span 2;">
+          <div class="module-header">
+            <div class="module-icon">🛡</div>
+            <span class="metric-title">Service Health</span>
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:10px;">
+            <div>
+              <div class="metric-title">API</div>
+              <div class="metric" style="font-size:22px;">200</div>
+              <div class="metric-trend up">Operational</div>
+            </div>
+            <div>
+              <div class="metric-title">Auth</div>
+              <div class="metric" style="font-size:22px;">Session</div>
+              <div class="metric-trend up">Ready</div>
+            </div>
+            <div>
+              <div class="metric-title">Store</div>
+              <div class="metric" style="font-size:22px; color:#38dbff;">Active</div>
+              <div class="metric-trend up">Writable</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 10) Calendar -->
+        <div class="module-card" style="grid-column: span 2;">
+          <div class="module-header">
+            <div class="module-icon">C</div>
+            <span class="metric-title">Calendar</span>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="activity-row">
+              <div class="dot ok"></div>
+              <div>
+                <div class="activity-text">Foundations review</div>
+                <div class="activity-meta">Scheduled — Pending confirmation</div>
+              </div>
+            </div>
+            <div class="activity-row">
+              <div class="dot warn"></div>
+              <div>
+                <div class="activity-text">Weekly journal check</div>
+                <div class="activity-meta">Recurring — Next 24 hours</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 11) Notifications -->
+        <div class="module-card" style="grid-column: span 2;">
+          <div class="module-header">
+            <div class="module-icon">!</div>
+            <span class="metric-title">Notifications</span>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="activity-row">
+              <div class="dot ok"></div>
+              <div>
+                <div class="activity-text">Auth system online</div>
+                <div class="activity-meta">Credentials valid</div>
+              </div>
+            </div>
+            <div class="activity-row">
+              <div class="dot warn"></div>
+              <div>
+                <div class="activity-text">Local session active</div>
+                <div class="activity-meta">Session expires on logout</div>
+              </div>
+            </div>
+            <div class="activity-row">
+              <div class="dot ok"></div>
+              <div>
+                <div class="activity-text">JSON stores writable</div>
+                <div class="activity-meta">tasks / notes / journal</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 12) Goals -->
+        <div class="module-card" style="grid-column: span 2;">
+          <div class="module-header">
+            <div class="module-icon">G</div>
+            <span class="metric-title">Goals</span>
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; margin-top:10px;">
+            <div>
+              <div class="metric-title">Moore Awareness</div>
+              <div class="metric" style="font-size:22px; color:#38dbff;">58%</div>
+              <div style="background:rgba(255,255,255,0.06); border-radius:999px; height:4px; margin-top:8px;">
+                <div style="background:#20d2ea; height:100%; width:58%; border-radius:999px;"></div>
+              </div>
+            </div>
+            <div>
+              <div class="metric-title">NEXA</div>
+              <div class="metric" style="font-size:22px; color:#20d2ea;">48%</div>
+              <div style="background:rgba(255,255,255,0.06); border-radius:999px; height:4px; margin-top:8px;">
+                <div style="background:#38dbff; height:100%; width:48%; border-radius:999px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 13) Memory -->
+        <div class="module-card">
+          <div class="module-header">
+            <div class="module-icon">◉</div>
+            <span class="metric-title">Memory</span>
+          </div>
+          <div class="metric" style="font-size:22px;">Indexed</div>
+          <div style="color:#6ea8c3; font-size:11px; margin-top:4px;">knowledge store</div>
+          <div class="metric-trend up" style="margin-top:10px;">Ready</div>
+        </div>
+
+        <!-- 14) Application -->
+        <div class="module-card">
+          <div class="module-header">
+            <div class="module-icon">◉</div>
+            <span class="metric-title">Application</span>
+          </div>
+          <div class="metric" style="font-size:22px; color:#38dbff;">7<small style="font-size:12px; color:#6ea8c3;">d</small></div>
+          <div style="color:#6ea8c3; font-size:11px; margin-top:4px;">current streak</div>
+          <div class="metric-trend up" style="margin-top:10px;">Maintained</div>
+        </div>
+
+        <!-- 15) Operations -->
+        <div class="module-card" style="grid-column: span 2;">
+          <div class="module-header">
+            <div class="module-icon">⚡</div>
+            <span class="metric-title">Operations</span>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="activity-row">
+              <div class="dot ok"></div>
+              <div>
+                <div class="activity-text">Operator maintains command</div>
+                <div class="activity-meta">Foundation remains solid</div>
+              </div>
+            </div>
+            <div class="activity-row">
+              <div class="dot ok"></div>
+              <div>
+                <div class="activity-text">No critical alerts</div>
+                <div class="activity-meta">System within normal parameters</div>
+              </div>
+            </div>
+            <div class="activity-row">
+              <div class="dot warn"></div>
+              <div>
+                <div class="activity-text">Pending review items</div>
+                <div class="activity-meta">Queue is stable</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 16) Principles -->
+        <div class="module-card" style="grid-column: span 2;">
+          <div class="module-header">
+            <div class="module-icon">✦</div>
+            <span class="metric-title">Principles</span>
+          </div>
+          <div style="margin-top:10px; color:#c5e3ef; font-size:13px; line-height:1.6;">
+            Solid foundations before modules. Track what matters. Use awareness as practice, not product.
+          </div>
+        </div>
+
+        <!-- 17) Chat / NEXA -->
+        <div class="module-card" style="grid-column: span 4;">
+          <div class="module-header">
+            <div class="module-icon">💬</div>
+            <span class="metric-title">NEXA Chat</span>
+          </div>
+          <div id="chat-log" style="display:flex; flex-direction:column; gap:10px; margin-top:10px; max-height:280px; overflow:auto;"></div>
+          <form id="chat-form" style="display:flex; gap:10px; margin-top:12px;">
+            <input id="chat-input" class="module-input" placeholder="Message NEXA..." autocomplete="off" />
+            <button class="module-btn secondary" style="width:auto; padding:10px 14px;">Send</button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</body>
+</html>

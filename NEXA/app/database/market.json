@@ -1,0 +1,58 @@
+[
+  {
+    "symbol": "^GSPC",
+    "name": "S&P 500",
+    "price": "5,432.41",
+    "change": "+1.80%",
+    "direction": "up"
+  },
+  {
+    "symbol": "^IXIC",
+    "name": "Nasdaq",
+    "price": "17,124.02",
+    "change": "+2.14%",
+    "direction": "up"
+  },
+  {
+    "symbol": "^DJI",
+    "name": "Dow",
+    "price": "39,120.86",
+    "change": "-0.34%",
+    "direction": "down"
+  },
+  {
+    "symbol": "AVEX",
+    "name": "AVEX",
+    "price": "34.72",
+    "change": "+4.21%",
+    "direction": "up"
+  },
+  {
+    "symbol": "NVDA",
+    "name": "NVIDIA",
+    "price": "118.50",
+    "change": "+2.18%",
+    "direction": "up"
+  },
+  {
+    "symbol": "AAPL",
+    "name": "Apple",
+    "price": "212.10",
+    "change": "+0.65%",
+    "direction": "up"
+  },
+  {
+    "symbol": "TSLA",
+    "name": "Tesla",
+    "price": "177.77",
+    "change": "-1.08%",
+    "direction": "down"
+  },
+  {
+    "symbol": "BTC-USD",
+    "name": "Bitcoin",
+    "price": "102,430",
+    "change": "+1.54%",
+    "direction": "up"
+  }
+]
