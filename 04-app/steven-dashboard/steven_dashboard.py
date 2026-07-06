@@ -153,155 +153,109 @@ def end_card():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def app_grid():
+    apps = [
+        ("Today's Tasks", "✅", "Today's Tasks"),
+        ("Calendar", "📅", "Calendar"),
+        ("Notes", "📝", "Notes"),
+        ("Journal", "📓", "Journal"),
+        ("Weather", "🌦️", "Weather"),
+        ("AI Status", "🤖", "AI Status"),
+        ("Stocks", "📈", "Stock Watchlist"),
+        ("Metrics", "📊", "Business Metrics"),
+        ("Commands", "⚡", "Quick Commands"),
+    ]
+    cols = st.columns(3, gap="medium")
+    for i, (label, icon, page) in enumerate(apps):
+        if cols[i % 3].button(f"{icon} {label}", use_container_width=True, key=f"app_{page}"):
+            st.session_state["page"] = page
+            st.rerun()
+
+
+def basic_pill(label, value):
+    st.markdown(f"<div class='card'><div class='card-title'>{label}</div><big>{value}</big></div>", unsafe_allow_html=True)
+
+
+def quick_row(items):
+    if not items:
+        st.caption("Nothing here yet.")
+        return
+    for x in items:
+        st.markdown(f"- {x}")
+
+
 def home() -> None:
     st.title(f"{greeting()}, Steven.")
     now = datetime.now()
     st.caption(now.strftime("%A, %B %d %Y • %H:%M"))
 
-    focus = safe_json(FOCUS_FILE, [])
-    if isinstance(focus, dict):
-        focus = focus.get("items", focus)
-    remaining = [i for i in focus if isinstance(i, dict) and not i.get("done")]
+    app_grid()
+
+    st.markdown("<hr/>", unsafe_allow_html=True)
 
     tasks = safe_json(TASKS_FILE, [])
     open_tasks = [i for i in tasks if isinstance(i, dict) and i.get("status") != "done"]
-    focus_today = [i.get("title", str(i)) for i in remaining[:5]]
-    if not focus_today:
-        focus_today = [i.get("title", str(i)) for i in open_tasks[:5]]
 
-    portfolio_delta = _portfolio_snippet()
-    weather_cached = st.session_state.setdefault("weather", {})
-    weather_text = weather_cached.get("text", "72°F / Partly cloudy")
-    weather_loc = weather_cached.get("loc", "Rosemount, MN")
-    weather_expires = weather_cached.get("expires", 0)
-    if weather_expires < datetime.now().timestamp():
+    weather_cached = st.session_state.setdefault("weather_basic", {})
+    weather_text = weather_cached.get("text", "—")
+    if not weather_text or weather_cached.get("expires", 0) < datetime.now().timestamp():
+        weather_cached.setdefault("text", "—")
+        weather_cached.setdefault("expires", 0)
         try:
             import requests
+            r = requests.get("https://wttr.in/Rosemount,MN?format=%c+%t+%h+%w", timeout=10)
+            weather_cached["text"] = r.text.strip()
+            weather_cached["expires"] = int(datetime.now().timestamp()) + 600
+        except Exception:
+            weather_cached["text"] = "Weather unavailable"
 
-            r = requests.get("https://wttr.in/Rosemount,MN?format=%l:+%c+%t+%h+%w\n", timeout=10)
-            weather_text = r.text.strip()
-            weather_loc = "Rosemount, MN"
-            weather_cached.update({"text": weather_text, "loc": weather_loc, "expires": int(datetime.now().timestamp()) + 180})
-        except Exception as e:
-            weather_text = f"Weather unavailable ({e})"
-            weather_loc = ""
-            weather_cached.update({"text": weather_text, "loc": weather_loc, "expires": int(datetime.now().timestamp()) + 60})
+    journal = safe_read(JOURNAL_PATH, "").splitlines()[:4]
+    notes = safe_read(NOTES_PATH, "").splitlines()[:4]
+    commands = safe_json(DATA_DIR / "commands.json", [])
+    watchlist = safe_json(DATA_DIR / "stocks.json", [])
+    focus = safe_json(FOCUS_FILE, [])
+    if isinstance(focus, dict):
+        focus = focus.get("items", focus)
+    focus = [i.get("title", str(i)) for i in focus if isinstance(i, dict) and not i.get("done")][:4]
 
-    m1, m2, m3, m4 = st.columns(4, gap="medium")
-    m1.metric("Portfolio", portfolio_delta)
-    m2.metric("Weather", f"{weather_loc} • {weather_text.splitlines()[0] if weather_text else '—'}")
-    m3.metric("Tasks", f"{len(open_tasks)} Remaining")
-    m4.metric("Focus", f"{len(focus_today)} Items")
+    lm_url = st.session_state.setdefault("lm_url", "http://localhost:1234/v1")
+    lm_model = st.session_state.setdefault("lm_model", "")
+    normalized = lm_url.rstrip("/") + "/chat/completions"
+    lm_result = ping_lm_studio_chat(normalized, lm_model)
 
-    left, right = st.columns(2, gap="medium")
-    with left:
-        # Live Tasks
-        st.markdown("<div class='card'><div class='card-title'>Live Tasks</div>", unsafe_allow_html=True)
-        task_changed = False
-        for row in open_tasks[:10]:
-            title = row.get("title", "Untitled")
-            checked = st.checkbox(title, value=row.get("status") == "done", key=f"home_task_{title}")
-            if checked != (row.get("status") == "done"):
-                row["status"] = "done" if checked else "open"
-                task_changed = True
-        if st.button("Save todos", use_container_width=True):
-            status_map = {r.get("title", f"untitled_{i}"): r.get("status", "open") for i, r in enumerate(open_tasks)}
-            updated = []
-            for i, r in enumerate(tasks):
-                if isinstance(r, dict):
-                    r = dict(r)
-                    r["status"] = status_map.get(r.get("title", f"untitled_{i}"), r.get("status", "open"))
-                    updated.append(r)
-                else:
-                    updated.append(r)
-            save_json(TASKS_FILE, updated)
-            st.success("Saved.")
-            st.rerun()
+    c1, c2, c3 = st.columns(3, gap="medium")
+    with c1:
+        basic_pill("Tasks", f"{len(open_tasks)} open")
+    with c2:
+        basic_pill("Weather", weather_text)
+    with c3:
+        err = lm_result.get('error') or ''
+        basic_pill('AI', 'OK' if lm_result.get('ok') else f"Error{(' ' + err) if err else ''}" )
+
+    c4, c5, c6 = st.columns(3, gap="medium")
+    with c4:
+        basic_pill("Stocks", ", ".join([
+            r.get("symbol") if isinstance(r, dict) else str(r)
+            for r in watchlist[:4]
+        ]) or "—")
+    with c5:
+        st.markdown("<div class='card'><div class='card-title'>Notes</div>", unsafe_allow_html=True)
+        quick_row(notes or ["Empty"])
+        st.markdown("</div>", unsafe_allow_html=True)
+    with c6:
+        st.markdown("<div class='card'><div class='card-title'>Journal</div>", unsafe_allow_html=True)
+        quick_row(journal or ["Empty"])
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Calendar
-        st.markdown("<div class='card' style='margin-top:16px;'><div class='card-title'>Calendar</div>", unsafe_allow_html=True)
-        rows = db().execute("SELECT * FROM calendar ORDER BY event_date DESC LIMIT 10").fetchall()
-        if rows:
-            for row in rows:
-                st.markdown(f"- **{row['event_date']}** {row['time'] or ''} — {row['title']}")
+    cmds = []
+    for item in commands[:5]:
+        if isinstance(item, dict):
+            cmds.append(f"{item.get('name','')} {item.get('command','')}".strip())
         else:
-            st.caption("No events.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Notes
-        st.markdown("<div class='card' style='margin-top:16px;'><div class='card-title'>Notes</div>", unsafe_allow_html=True)
-        notes = safe_read(NOTES_PATH, "")
-        st.markdown((notes[:900] + ("..." if len(notes) > 900 else "")) or "Empty", unsafe_allow_html=False)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with right:
-        # Weather full
-        st.markdown("<div class='card'><div class='card-title'>Weather</div>", unsafe_allow_html=True)
-        st.code(weather_text or "—", language="text")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # AI Status
-        st.markdown("<div class='card' style='margin-top:16px;'><div class='card-title'>AI Status</div>", unsafe_allow_html=True)
-        lm_url = st.session_state.setdefault("lm_url", "http://localhost:1234/v1")
-        lm_model = st.session_state.setdefault("lm_model", "")
-        normalized = lm_url.rstrip("/") + "/chat/completions"
-        result = ping_lm_studio_chat(normalized, lm_model)
-        a1, a2, a3 = st.columns(3)
-        a1.metric("Status", "OK" if result.get("ok") else "Error")
-        a2.metric("Latency", f"{result.get('latency_s')}s" if result.get("latency_s") is not None else "—")
-        a3.metric("Model", lm_model or "—")
-        if result.get("error"):
-            st.caption(result["error"])
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Stock Watchlist
-        st.markdown("<div class='card' style='margin-top:16px;'><div class='card-title'>Stock Watchlist</div>", unsafe_allow_html=True)
-        watchlist_path = DATA_DIR / "stocks.json"
-        watchlist = safe_json(watchlist_path, [])
-        if not isinstance(watchlist, list):
-            watchlist = []
-        for row in watchlist[:8]:
-            sym = row.get("symbol") if isinstance(row, dict) else str(row)
-            st.markdown(f"- **{sym}**")
-        if not watchlist:
-            st.caption("Watchlist empty.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Business Metrics
-        st.markdown("<div class='card' style='margin-top:16px;'><div class='card-title'>Business Metrics</div>", unsafe_allow_html=True)
-        st.caption("Configure metrics in Business Metrics.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Journal
-        st.markdown("<div class='card' style='margin-top:16px;'><div class='card-title'>Journal</div>", unsafe_allow_html=True)
-        journal = safe_read(JOURNAL_PATH, "")
-        st.markdown((journal[:700] + ("..." if len(journal) > 700 else "")) or "Empty", unsafe_allow_html=False)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Quick Commands
-        st.markdown("<div class='card' style='margin-top:16px;'><div class='card-title'>Quick Commands</div>", unsafe_allow_html=True)
-        commands_path = DATA_DIR / "commands.json"
-        commands = safe_json(commands_path, [])
-        if not isinstance(commands, list):
-            commands = []
-        for item in commands[:8]:
-            name = item.get("name", "") if isinstance(item, dict) else str(item)
-            cmd = item.get("command", "") if isinstance(item, dict) else ""
-            st.code(f"{name}: {cmd}")
-        if not commands:
-            st.caption("No commands yet.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # Latest AI News
-    research_path = APP_DIR.parent.parent / "07-operations" / "nexa-research.md"
-    research_text = safe_read(research_path, "")
-    lines = [x.strip() for x in research_text.splitlines() if x.strip() and not x.startswith("#")]
-    latest_news = lines[:5] if lines else ["Research log empty. Add notes in Nexa Research."]
-    st.markdown("<div class='card' style='margin-top:16px;'><div class='card-title'>Latest AI News</div>", unsafe_allow_html=True)
-    for item in latest_news:
-        st.markdown(f"- {item}")
-    end_card()
+            cmds.append(str(item))
+    st.markdown("<div class='card'><div class='card-title'>Quick Commands</div>", unsafe_allow_html=True)
+    quick_row(cmds or ["No commands yet."])
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def tasks_page() -> None:

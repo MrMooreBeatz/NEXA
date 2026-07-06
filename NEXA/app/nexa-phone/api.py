@@ -2,6 +2,8 @@ from flask import Flask, session, jsonify, request, send_from_directory
 from pathlib import Path
 from datetime import datetime
 import json
+import urllib.request
+import urllib.error
 
 BASE = Path(__file__).resolve().parent
 DB = BASE / "database"
@@ -10,6 +12,18 @@ DB.mkdir(parents=True, exist_ok=True)
 TASKS_FILE = DB / "tasks.json"
 NOTES_FILE = DB / "notes.json"
 JOURNAL_FILE = DB / "journal.json"
+MARKET_FILE = DB / "market.json"
+
+DEFAULT_QUOTES = [
+  {"symbol": "^GSPC", "name": "S&P 500", "price": "5,432.41", "change": "+1.80%", "direction": "up"},
+  {"symbol": "^IXIC", "name": "Nasdaq", "price": "17,124.02", "change": "+2.14%", "direction": "up"},
+  {"symbol": "^DJI", "name": "Dow", "price": "39,120.86", "change": "-0.34%", "direction": "down"},
+  {"symbol": "AVEX", "name": "AVEX", "price": "34.72", "change": "+4.21%", "direction": "up"},
+  {"symbol": "NVDA", "name": "NVIDIA", "price": "118.50", "change": "+2.18%", "direction": "up"},
+  {"symbol": "AAPL", "name": "Apple", "price": "212.10", "change": "+0.65%", "direction": "up"},
+  {"symbol": "TSLA", "name": "Tesla", "price": "177.77", "change": "-1.08%", "direction": "down"},
+  {"symbol": "BTC-USD", "name": "Bitcoin", "price": "102,430", "change": "+1.54%", "direction": "up"},
+]
 
 def read_json(path):
     try:
@@ -42,6 +56,10 @@ def login():
         return jsonify({"ok": False}), 401
     session["authed"] = True
     return jsonify({"ok": True})
+
+@app.get("/api/whoami")
+def whoami():
+    return jsonify({"authed": bool(session.get("authed"))})
 
 @app.get("/api/session")
 def session_status():
@@ -108,5 +126,31 @@ def journal_post():
     write_json(JOURNAL_FILE, entries)
     return jsonify(entries)
 
+def refresh_quotes_to_file():
+    saved = read_json(MARKET_FILE)
+    out = []
+    for item in DEFAULT_QUOTES:
+        out.append({
+            "symbol": item["symbol"],
+            "name": item.get("name", item["symbol"]),
+            "price": item["price"],
+            "change": item["change"],
+            "direction": item["direction"],
+        })
+    write_json(MARKET_FILE, out)
+    return out
+
+@app.get("/api/market")
+def market_get():
+    try:
+        return jsonify(read_json(MARKET_FILE))
+    except Exception:
+        return jsonify([])
+
+@app.post("/api/market/reload")
+def market_reload():
+    return jsonify(refresh_quotes_to_file())
+
 if __name__ == "__main__":
+    refresh_quotes_to_file()
     app.run(host="127.0.0.1", port=8080, debug=True)

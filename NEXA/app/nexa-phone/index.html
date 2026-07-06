@@ -219,9 +219,12 @@
 
   <div id="home" class="screen">
     <div class="statusbar">
-      <div class="left" id="status-date">...</div>
-      <div class="center" id="status-clock">...</div>
-      <div class="right"><span class="dot"></span>ONLINE</div>
+      <div class="left" id="status-date"></div>
+      <div class="center" id="status-clock"></div>
+      <div class="right">
+        <span id="auth-status" style="font-size:0.7rem;opacity:0.8;"></span>
+        <button id="logout-btn" onclick="doLogout()" style="display:none;background:none;border:none;color:var(--accent);font-size:0.7rem;cursor:pointer;">LOG OUT</button>
+      </div>
     </div>
     <div id="market-ticker" class="ticker-wrap">
       <div class="ticker-track" id="ticker-track">
@@ -292,6 +295,7 @@
         const data = await api("/api/session");
         if (data && data.authed) {
           showScreen("home");
+          updateAuthUI(true);
           return true;
         }
       } catch (e) {
@@ -299,7 +303,27 @@
       }
       localStorage.removeItem("nexa_auth");
       showScreen("auth");
+      updateAuthUI(false);
       return false;
+    }
+
+    async function updateAuthUI(authed) {
+      const status = document.getElementById("auth-status");
+      const logout = document.getElementById("logout-btn");
+      if (!status || !logout) return;
+      status.textContent = authed ? "AUTH READY" : "";
+      logout.style.display = authed ? "inline-block" : "none";
+    }
+
+    async function doLogout() {
+      try {
+        await fetch("/api/logout", { method: "POST", headers: { "content-type": "application/json" }, credentials: "same-origin" });
+      } catch (e) {
+        console.warn("Logout failed", e);
+      }
+      localStorage.removeItem("nexa_auth");
+      updateAuthUI(false);
+      showScreen("auth");
     }
 
     async function clock() {
