@@ -143,7 +143,8 @@ with st.sidebar:
         "Notifications",
     ], label_visibility="collapsed")
     st.markdown("---")
-    st.caption(datetime.now().strftime("%a, %b %d • %H:%M"))
+    st.markdown("<div id='sidebar-clock' style='font-family:var(--font-mono);font-size:0.85rem;color:#7f9a93;'></div>", unsafe_allow_html=True)
+    st.markdown("<script>function tick(){var d=new Date();document.getElementById('sidebar-clock').innerHTML=d.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});}tick();setInterval(tick,1000);</script>", unsafe_allow_html=True)
 
 # ---------------------------
 # TODAY
@@ -156,8 +157,8 @@ if page == "Today":
     with c2:
         st.markdown("<div class='nexa-card'><div class='nexa-label'>Status</div><div class='nexa-value'><span class='nexa-accent'>●</span> Online</div></div>", unsafe_allow_html=True)
     with c3:
-        st.markdown("<div class='nexa-card'><div class='nexa-label'>Time</div><div class='nexa-value' id='clock'></div></div>", unsafe_allow_html=True)
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+        st.markdown("<div class='nexa-card'><div class='nexa-label'>Time</div><div class='nexa-value'><span id='nexa-clock'></span></div></div>", unsafe_allow_html=True)
+    st.markdown("<script>function tick(){var d=new Date();var el1=document.getElementById('nexa-clock');var el2=document.getElementById('sidebar-clock');var txt=d.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});if(el1){el1.innerHTML=txt;}if(el2){el2.innerHTML=txt;}}tick();setInterval(tick,1000);</script>", unsafe_allow_html=True)
     st.markdown("<div class='nexa-card'><div class='nexa-label'>Top 3</div><div class='nexa-value'>1. Restart NEXA stack<br/>2. Clean docs<br/>3. Journal</div></div>", unsafe_allow_html=True)
 
 # ---------------------------
