@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Personal Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Playfair+Display:wght@700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .heading { font-family: 'Playfair Display', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.2); }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 text-white min-h-screen">
+    <div class="max-w-7xl mx-auto p-6">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="heading text-5xl font-bold tracking-tight">Good morning, [Your Name]</h1>
+                <p id="date" class="text-slate-400 mt-1"></p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="clock" class="text-4xl font-light tabular-nums"></div>
+                <button onclick="toggleEditMode()" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl flex items-center gap-2 transition">
+                    <i class="fas fa-edit"></i> Customize
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+            <!-- Left Column -->
+            <div class="md:col-span-8 space-y-6">
+                <!-- Greeting Widget -->
+                <div class="glass rounded-3xl p-8">
+                    <div id="greeting" class="text-3xl font-medium"></div>
+                    <div id="quote" class="mt-6 text-lg italic text-slate-300 max-w-md">"The only way to do great work is to love what you do."</div>
+                    <div class="text-sm text-slate-500 mt-2">- Steve Jobs</div>
+                </div>
+
+                <!-- Tasks -->
+                <div class="glass rounded-3xl p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold flex items-center gap-2"><i class="fas fa-tasks"></i> Today's Focus</h2>
+                        <button onclick="addTask()" class="text-purple-400 hover:text-purple-300"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <ul id="task-list" class="space-y-3"></ul>
+                </div>
+
+                <!-- Quick Links -->
+                <div class="glass rounded-3xl p-6">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center gap-2"><i class="fas fa-link"></i> Quick Links</h2>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="links-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="md:col-span-4 space-y-6">
+                <!-- Weather -->
+                <div class="glass rounded-3xl p-6">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center gap-2"><i class="fas fa-cloud-sun"></i> Weather</h2>
+                    <div id="weather" class="text-center py-4">
+                        <div class="text-6xl mb-2">☀️</div>
+                        <div class="text-3xl font-light" id="temp">68°</div>
+                        <div class="text-slate-400">Sunny in Your City</div>
+                    </div>
+                    <p class="text-xs text-slate-500 text-center">* Replace with real API for live data</p>
+                </div>
+
+                <!-- Calendar / Focus Time -->
+                <div class="glass rounded-3xl p-6">
+                    <h2 class="text-xl font-semibold mb-4"><i class="fas fa-calendar"></i> This Week</h2>
+                    <div class="space-y-4 text-sm">
+                        <div class="flex justify-between"><span class="text-slate-400">Mon</span><span>Deep work block</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Wed</span><span>Team sync</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Fri</span><span>Review goals</span></div>
+                    </div>
+                </div>
+
+                <!-- Pomodoro / Timer -->
+                <div class="glass rounded-3xl p-6 text-center">
+                    <h2 class="text-xl font-semibold mb-4">Focus Timer</h2>
+                    <div id="timer" class="text-6xl font-light tabular-nums mb-6">25:00</div>
+                    <div class="flex gap-3 justify-center">
+                        <button onclick="startTimer()" class="flex-1 py-3 bg-purple-600 hover:bg-purple-700 rounded-2xl">Start</button>
+                        <button onclick="resetTimer()" class="flex-1 py-3 bg-white/10 hover:bg-white/20 rounded-2xl">Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tailwind script already loaded
+        function updateDate() {
+            const now = new Date();
+            document.getElementById('date').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        }
+
+        function updateClock() {
+            const clock = document.getElementById('clock');
+            setInterval(() => {
+                const now = new Date();
+                clock.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            }, 1000);
+        }
+
+        function updateGreeting() {
+            const hour = new Date().getHours();
+            let greeting = "Good evening";
+            if (hour < 12) greeting = "Good morning";
+            else if (hour < 17) greeting = "Good afternoon";
+            document.getElementById('greeting').textContent = greeting + ", let's crush today ✨";
+        }
+
+        // Tasks
+        let tasks = [
+            {id: 1, text: "Finish dashboard tweaks", done: false},
+            {id: 2, text: "Morning workout", done: true}
+        ];
+
+        function renderTasks() {
+            const ul = document.getElementById('task-list');
+            ul.innerHTML = '';
+            tasks.forEach(task => {
+                const li = document.createElement('li');
+                li.className = `flex items-center gap-3 p-3 rounded-2xl ${task.done ? 'line-through opacity-60' : ''}`;
+                li.innerHTML = `
+                    <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask(${task.id})" class="w-5 h-5 accent-purple-500">
+                    <span class="flex-1">${task.text}</span>
+                    <button onclick="deleteTask(${task.id})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button>
+                `;
+                ul.appendChild(li);
+            });
+        }
+
+        function addTask() {
+            const text = prompt("New focus task:");
+            if (text) {
+                tasks.push({id: Date.now(), text, done: false});
+                renderTasks();
+            }
+        }
+
+        function toggleTask(id) {
+            tasks = tasks.map(t => t.id === id ? {...t, done: !t.done} : t);
+            renderTasks();
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            renderTasks();
+        }
+
+        // Links
+        const defaultLinks = [
+            {name: "GitHub", url: "https://github.com", icon: "fab fa-github"},
+            {name: "Mail", url: "https://gmail.com", icon: "fas fa-envelope"},
+            {name: "Calendar", url: "https://calendar.google.com", icon: "fas fa-calendar-alt"},
+            {name: "Notion", url: "https://notion.so", icon: "fas fa-note-sticky"},
+        ];
+
+        function renderLinks() {
+            const grid = document.getElementById('links-grid');
+            grid.innerHTML = '';
+            defaultLinks.forEach(link => {
+                const a = document.createElement('a');
+                a.href = link.url;
+                a.target = "_blank";
+                a.className = "glass flex flex-col items-center justify-center p-6 rounded-3xl hover:scale-105 transition group";
+                a.innerHTML = `
+                    <i class="${link.icon} text-3xl mb-3 text-purple-400 group-hover:text-purple-300"></i>
+                    <span class="font-medium">${link.name}</span>
+                `;
+                grid.appendChild(a);
+            });
+        }
+
+        // Simple Timer
+        let timerInterval;
+        let timeLeft = 25 * 60;
+
+        function updateTimerDisplay() {
+            const min = Math.floor(timeLeft / 60);
+            const sec = timeLeft % 60;
+            document.getElementById('timer').textContent = `${min}:${sec.toString().padStart(2, '0')}`;
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay();
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    alert("Focus session complete! Take a break 💪");
+                }
+            }, 1000);
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timeLeft = 25 * 60;
+            updateTimerDisplay();
+        }
+
+        function toggleEditMode() {
+            alert("Edit mode: In a real version, this would let you drag widgets, change colors, add RSS feeds, etc. For now, customize the HTML directly!");
+        }
+
+        // Init
+        window.onload = () => {
+            updateDate();
+            updateClock();
+            updateGreeting();
+            renderTasks();
+            renderLinks();
+            updateTimerDisplay();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>NEXA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-deep: #04070a;
+      --bg-card: #0b1115;
+      --bg-surface: #111a20;
+      --text-primary: #e4ecf1;
+      --text-secondary: #8ba0ab;
+      --text-muted: #3f5a66;
+      --accent: #00d4aa;
+      --accent-dim: rgba(0, 212, 170, 0.12);
+      --accent-strong: rgba(0, 212, 170, 0.28);
+      --border: #162028;
+      --blue: #4da6ff;
+      --font: 'Inter', system-ui, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      font-family: var(--font);
+      overflow-x: hidden;
+      min-width: 320px;
+    }
+    .screen { display: none; flex-direction: column; min-height: 100dvh; }
+    .screen.active { display: flex; }
+
+    /* Auth */
+    #auth { align-items: center; justify-content: center; padding: 24px; gap: 18px; }
+    .auth-box { width: 100%; max-width: 340px; }
+    .auth-title { color: var(--accent); font-size: 1.5rem; letter-spacing: 0.06em; font-weight: 600; text-align: center; }
+    .auth-sub { color: var(--text-muted); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; text-align: center; margin-top: 6px; }
+    .auth-input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 1rem;
+      outline: none;
+    }
+    .auth-input:focus { border-color: var(--accent-strong); }
+    .auth-btn {
+      width: 100%;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 10px;
+      padding: 12px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .auth-error { color: #ff8a8a; font-size: 0.85rem; min-height: 18px; text-align: center; }
+
+    /* Status bar */
+    .statusbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      background: rgba(6, 9, 11, 0.78);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .statusbar .left { color: var(--accent); font-size: 13px; font-weight: 500; }
+    .statusbar .center { font-size: 13px; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .statusbar .right {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 10px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-strong);
+      border-radius: 999px;
+      color: var(--accent);
+      font-size: 0.72rem;
+      font-weight: 500;
+    }
+    .dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: pulse 3s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.35; } }
+
+    /* Layout */
+    .app-shell { padding: 14px; padding-bottom: 110px; }
+    .spacer { height: 10px; }
+    .section-title { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; margin-bottom: 10px; padding-left: 4px; }
+    .divider { height: 1px; background: linear-gradient(to right, transparent, var(--border), transparent); border: none; margin: 14px 0; }
+
+    /* Cards */
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+    .card-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500; margin-bottom: 6px; }
+    .card-metric { font-size: 1.4rem; font-weight: 600; color: var(--accent); margin-top: 4px; }
+    .card-caption { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
+
+    /* App grid */
+    .app-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .app-tile {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+      padding: 14px 6px 12px; border-radius: 16px; background: var(--bg-card); border: 1px solid var(--border);
+      cursor: pointer; transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+      font-family: var(--font);
+    }
+    .app-tile:active { transform: scale(0.98); }
+    .app-tile:hover, .app-tile:focus { background: var(--bg-surface); border-color: var(--accent-strong); outline: none; }
+    .app-icon {
+      width: 38px; height: 38px; border-radius: 10px; background: var(--accent-dim);
+      display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--accent);
+    }
+    .app-label { font-size: 11px; color: var(--text-secondary); text-align: center; font-weight: 500; }
+
+    /* Tasks */
+    .task-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .task-row:last-child { border-bottom: none; }
+    .task-check {
+      width: 22px; height: 22px; border-radius: 7px; border: 1px solid var(--border); background: var(--bg-card);
+      color: transparent; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; flex-shrink: 0;
+    }
+    .task-check.done { background: var(--accent); border-color: var(--accent); color: #000; }
+    .task-text { color: var(--text-secondary); font-size: 0.95rem; word-break: break-word; }
+    .task-text.done { text-decoration: line-through; color: var(--text-muted); }
+    .task-del { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; }
+
+    /* Notes / journal */
+    .note-card, .journal-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+    .note-meta, .journal-meta { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; }
+    .note-body, .journal-body { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; }
+
+    /* Calendar */
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+    .cal-header { text-align: center; font-size: 0.72rem; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; }
+    .cal-day { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 8px; min-height: 64px; }
+    .cal-day.today { border-color: var(--accent-strong); }
+    .cal-day-number { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+    .cal-day.today .cal-day-number { color: var(--accent); }
+    .cal-event { font-size: 0.72rem; color: var(--text-secondary); background: var(--bg-surface); border-radius: 6px; padding: 3px 6px; margin-top: 5px; }
+
+    /* Notifications */
+    .notification-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .notification-item:last-child { border-bottom: none; }
+    .notification-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+    .notification-content { color: var(--text-secondary); font-size: 0.9rem; }
+
+    /* Dock */
+    .bottom-dock {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(8, 12, 15, 0.8); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border-top: 1px solid var(--border); padding: 10px 0 14px; z-index: 999999;
+    }
+    .dock-row { display: flex; justify-content: center; gap: 32px; }
+    .dock-item { display: flex; flex-direction: column; align-items: center; gap: 3px; background: transparent; border: none; color: inherit; font-family: var(--font); cursor: pointer; }
+    .dock-icon {
+      width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); font-size: 14px;
+    }
+    .dock-item.active .dock-icon, .dock-item:hover .dock-icon { background: var(--accent-dim); border-color: var(--accent-strong); color: var(--accent); }
+    .dock-label { font-size: 10px; color: var(--text-muted); letter-spacing: 0.04em; }
+    .dock-item.active .dock-label, .dock-item:hover .dock-label { color: var(--accent); }
+
+    /* Form */
+    .input {
+      width: 100%; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary);
+      border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; outline: none; font-family: var(--font);
+    }
+    .input:focus { border-color: var(--accent-strong); }
+    .btn {
+      width: 100%; background: var(--accent); color: #000; border: none; border-radius: 10px;
+      padding: 12px; font-weight: 600; font-size: 0.95rem; cursor: pointer; font-family: var(--font);
+    }
+    .btn-secondary {
+      width: 100%; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px; font-weight: 500; font-size: 0.95rem; cursor: pointer; font-family: var(--font);
+    }
+    .back-btn {
+      width: 40px; height: 40px; border-radius: 10px; background: var(--bg-card); color: var(--text-primary);
+      border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center;
+      font-size: 18px; cursor: pointer; font-family: var(--font);
+    }
+
+    .metrics-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+    .metrics-tickers { display: flex; gap: 14px; margin-top: 12px; color: var(--text-secondary); font-size: 0.9rem; }
+
+    /* Ticker */
+    .ticker-wrap { width: 100%; overflow: hidden; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: rgba(8, 12, 15, 0.3); padding: 8px 0; }
+    .ticker-track { display: inline-flex; white-space: nowrap; animation: ticker 35s linear infinite; gap: 28px; padding-left: 14px; }
+    .ticker-item { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-secondary); }
+    .ticker-symbol { color: var(--blue); font-weight: 600; }
+    .ticker-price { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .ticker-change { color: var(--accent); }
+    .ticker-change.down { color: var(--red); }
+    @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+  </style>
+</head>
+<body>
+  <div id="auth" class="screen active">
+    <div class="auth-box">
+      <div class="auth-title">NEXA</div>
+      <div class="auth-sub">Personal OS</div>
+      <div class="spacer"></div>
+      <input id="password" class="auth-input" type="password" placeholder="Access code" autocomplete="current-password" />
+      <div class="spacer"></div>
+      <button id="login" class="auth-btn">ENTER</button>
+      <div id="auth-error" class="auth-error"></div>
+    </div>
+  </div>
+
+  <div id="home" class="screen">
+    <div class="statusbar">
+      <div class="left" id="status-date"></div>
+      <div class="center" id="status-clock"></div>
+      <div class="right">
+        <span id="auth-status" style="font-size:0.7rem;opacity:0.8;"></span>
+        <button id="logout-btn" onclick="doLogout()" style="display:none;background:none;border:none;color:var(--accent);font-size:0.7rem;cursor:pointer;">LOG OUT</button>
+      </div>
+    </div>
+    <div id="market-ticker" class="ticker-wrap">
+      <div class="ticker-track" id="ticker-track">
+        <span style="color:var(--text-muted);" id="ticker-fallback">...</span>
+      </div>
+    </div>
+    <div class="app-shell">
+      <div id="home-stats"></div>
+      <hr class="divider" />
+      <div class="section-title">Apps</div>
+      <div id="app-grid" class="app-grid"></div>
+    </div>
+  </div>
+
+  <div id="app" class="screen">
+    <div class="statusbar">
+      <button id="back" class="back-btn" aria-label="Back">←</button>
+      <div class="center" id="app-title">...</div>
+      <div style="width:40px"></div>
+    </div>
+    <div class="app-shell" id="app-content"></div>
+  </div>
+
+  <div id="dock" class="bottom-dock">
+    <div class="dock-row">
+      <button class="dock-item active" data-screen="home">
+        <div class="dock-icon">◉</div>
+        <div class="dock-label">Home</div>
+      </button>
+      <button class="dock-item" data-action="new">
+        <div class="dock-icon">+</div>
+        <div class="dock-label">New</div>
+      </button>
+      <button class="dock-item" data-action="fav">
+        <div class="dock-icon">★</div>
+        <div class="dock-label">Fav</div>
+      </button>
+      <button class="dock-item" data-action="more">
+        <div class="dock-icon">⚙</div>
+        <div class="dock-label">More</div>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "";
+    const AUTH_HASH = "dde64fbb753a23bae83d7a8e279855e62d8cd8c5fc2305748fe6359fb865df28";
+
+    async function sha256(text) {
+      const data = new TextEncoder().encode(text);
+      const hash = await crypto.subtle.digest("SHA-256", data);
+      return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    async function api(path, method = "GET", body) {
+      const res = await fetch(API_BASE + path, {
+        method,
+        headers: { "content-type": "application/json", "Cache-Control": "no-cache" },
+        credentials: "same-origin",
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) throw new Error("Request failed: " + res.status);
+      return res.json();
+    }
+
+    async function checkSession() {
+      try {
+        const data = await api("/api/session");
+        if (data && data.authed) {
+          showScreen("home");
+          updateAuthUI(true);
+          return true;
+        }
+      } catch (e) {
+        console.warn("Session check failed", e);
+      }
+      localStorage.removeItem("nexa_auth");
+      showScreen("auth");
+      updateAuthUI(false);
+      return false;
+    }
+
+    async function updateAuthUI(authed) {
+      const status = document.getElementById("auth-status");
+      const logout = document.getElementById("logout-btn");
+      if (!status || !logout) return;
+      status.textContent = authed ? "AUTH READY" : "";
+      logout.style.display = authed ? "inline-block" : "none";
+    }
+
+    async function doLogout() {
+      try {
+        await fetch("/api/logout", { method: "POST", headers: { "content-type": "application/json" }, credentials: "same-origin" });
+      } catch (e) {
+        console.warn("Logout failed", e);
+      }
+      localStorage.removeItem("nexa_auth");
+      updateAuthUI(false);
+      showScreen("auth");
+    }
+
+    async function clock() {
+      const now = new Date();
+      const time = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+      const date = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      document.getElementById("status-clock").textContent = time;
+      document.getElementById("status-date").textContent = date;
+    }
+    setInterval(clock, 1000);
+    clock();
+
+    const fallbackQuotes = [
+      { symbol: "^GSPC", price: "5,432.41", change: "+1.80%", direction: "up" },
+      { symbol: "^IXIC", price: "17,124.02", change: "+2.15%", direction: "up" },
+      { symbol: "^DJI", price: "39,823.11", change: "+0.94%", direction: "up" },
+      { symbol: "AVEX", price: "482.30", change: "+4.21%", direction: "up" },
+      { symbol: "NVDA", price: "132.41", change: "+2.18%", direction: "up" },
+      { symbol: "AAPL", price: "220.75", change: "-0.42%", direction: "down" },
+      { symbol: "TSLA", price: "178.91", change: "-1.13%", direction: "down" },
+      { symbol: "BTC-USD", price: "108,420.05", change: "+3.04%", direction: "up" },
+    ];
+    function renderTicker(items) {
+      const track = document.getElementById("ticker-track");
+      if (!track) return;
+      const html = items.map(q => {
+        const cls = q.direction === "down" ? "ticker-change down" : "ticker-change";
+        return `<div class="ticker-item"><span class="ticker-symbol">${q.symbol}</span><span class="ticker-price">${q.price}</span><span class="${cls}">${q.change}</span></div>`;
+      }).join("");
+      track.innerHTML = html + html;
+    }
+    renderTicker(fallbackQuotes);
+
+    const apps = [
+      { name: "Today", icon: "◉" },
+      { name: "Calendar", icon: "⊞" },
+      { name: "Tasks", icon: "✓" },
+      { name: "Notes", icon: "N" },
+      { name: "Journal", icon: "J" },
+      { name: "Goals", icon: "G" },
+      { name: "Metrics", icon: "M" },
+      { name: "Notifications", icon: "!" },
+    ];
+
+    function showScreen(id) {
+      document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+    }
+
+    function goHome() { showScreen("home"); document.getElementById("dock").style.display = ""; }
+
+    function openApp(name) {
+      document.getElementById("app-title").textContent = name.toUpperCase();
+      document.getElementById("dock").style.display = "none";
+      renderApp(name);
+      showScreen("app");
+    }
+
+    async function renderApp(name) {
+      const container = document.getElementById("app-content");
+      if (name === "Today") {
+        const tasks = await api("/api/tasks");
+        const completed = tasks.filter(t => t.done).length;
+        container.innerHTML = `
+          <div id="home-stats" class="app-shell" style="padding:0;">
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
+              <div class="card"><div class="card-label">Focus</div><div class="card-metric">1</div><div class="card-caption">thing today</div></div>
+              <div class="card"><div class="card-label">Completed</div><div class="card-metric">${completed}</div><div class="card-caption">tasks done</div></div>
+              <div class="card"><div class="card-label">Streak</div><div class="card-metric">7</div><div class="card-caption">days</div></div>
+            </div>
+            <hr class="divider" />
+            <div class="card"><div class="card-label">Top 3</div><div style="line-height:1.7; color: var(--text-secondary);">1. Restart NEXA stack<br/>2. Clean docs<br/>3. Journal</div></div>
+          </div>
+        `;
+      } else if (name === "Tasks") {
+        const tasks = await api("/api/tasks");
+        const rows = tasks.map(t => `
+          <div class="task-row">
+            <div class="task-check ${t.done ? 'done' : ''}" data-action="toggle" data-id="${t.id}">${t.done ? '✓' : ''}</div>
+            <div class="task-text ${t.done ? 'done' : ''}">${t.text}</div>
+            <button class="task-del" data-action="delete" data-id="${t.id}">✕</button>
+          </div>
+        `).join("");
+        container.innerHTML = `
+          <div id="task-list">${rows || "<div style='color:var(--text-secondary);'>No tasks yet.</div>"}</div>
+          <div class="spacer"></div>
+          <form id="task-form" style="display:flex; gap:10px;">
+            <input id="task-input" class="input" placeholder="Add a task" required />
+            <button class="btn" style="width:auto; padding: 10px 14px;">Add</button>
+          </form>
+        `;
+        document.getElementById("task-form").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const input = document.getElementById("task-input");
+          if (!input.value.trim()) return;
+          await api("/api/tasks", "POST", { action: "add", text: input.value.trim() });
+          input.value = "";
+          renderApp("Tasks");
+        });
+        container.addEventListener("click", async (e) => {
+          const btn = e.target.closest("[data-action='toggle']");
+          if (btn) {
+            await api("/api/tasks", "POST", { action: "toggle", id: Number(btn.dataset.id) });
+            renderApp("Tasks");
+            renderApp("Today");
+          }
+          const del = e.target.closest("[data-action='delete']");
+          if (del) {
+            await api("/api/tasks", "POST", { action: "delete", id: Number(del.dataset.id) });
+            renderApp("Tasks");
+            renderApp("Today");
+          }
+        });
+      } else if (name === "Notes") {
+        const notes = await api("/api/notes");
+        const cards = notes.slice(0, 20).map(n => {
+          const dt = new Date(n.ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+          return `<div class="note-card"><div class="note-meta">${dt}</div><div class="note-body">${n.text}</div></div>`;
+        }).join("");
+        container.innerHTML = `
+          <textarea id="note-input" class="input" rows="5" placeholder="Type a note..."></textarea>
+          <div class="spacer"></div>
+          <button id="note-save" class="btn">Save note</button>
+          <div id="note-success" style="color: var(--accent); font-size: 0.85rem; margin-top: 8px; min-height: 18px;"></div>
+          <div class="spacer"></div>
+          <div id="note-list">${cards}</div>
+        `;
+        document.getElementById("note-save").addEventListener("click", async () => {
+          const text = document.getElementById("note-input").value.trim();
+          if (!text) return;
+          await api("/api/notes", "POST", { text });
+          document.getElementById("note-input").value = "";
+          document.getElementById("note-success").textContent = "Note saved.";
+          renderApp("Notes");
+        });
+      } else if (name === "Journal") {
+        const entries = await api("/api/journal");
+        const cards = entries.slice(0, 20).map(e => {
+          const dt = new Date(e.ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+          return `<div class="journal-card"><div class="journal-meta">${dt}</div><div class="journal-body">${e.text}</div></div>`;
+        }).join("");
+        container.innerHTML = `
+          <textarea id="journal-input" class="input" rows="6" placeholder="What are you building today?"></textarea>
+          <div class="spacer"></div>
+          <button id="journal-save" class="btn">Save entry</button>
+          <div id="journal-success" style="color: var(--accent); font-size: 0.85rem; margin-top: 8px; min-height: 18px;"></div>
+          <div class="spacer"></div>
+          <div id="journal-list">${cards}</div>
+        `;
+        document.getElementById("journal-save").addEventListener("click", async () => {
+          const text = document.getElementById("journal-input").value.trim();
+          if (!text) return;
+          await api("/api/journal", "POST", { text });
+          document.getElementById("journal-input").value = "";
+          document.getElementById("journal-success").textContent = "Entry saved.";
+          renderApp("Journal");
+        });
+      } else if (name === "Calendar") {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = today.getMonth();
+        const monthLabel = today.toLocaleString("en-US", { month: "long", year: "numeric" });
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const firstDay = new Date(year, month, 1).getDay();
+        const blanks = Array.from({ length: firstDay }, () => `<div class="cal-day"></div>`).join("");
+        const days = Array.from({ length: daysInMonth }, (_, i) => {
+          const day = i + 1;
+          const isToday = day === today.getDate();
+          const events = isToday ? `<div class="cal-event">10:00 AM — Check-in</div><div class="cal-event">06:00 PM — Recovery Meeting</div>` : "";
+          return `<div class="cal-day ${isToday ? 'today' : ''}"><div class="cal-day-header">${isToday ? 'Today' : ''}</div><div class="cal-day-number">${day}</div>${events}</div>`;
+        }).join("");
+        const headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => `<div class="cal-header">${d}</div>`).join("");
+        container.innerHTML = `
+          <div class="card" style="margin-bottom:10px;"><div class="card-label">${monthLabel}</div></div>
+          <div class="cal-grid">${headers}${blanks}${days}</div>
+        `;
+      } else if (name === "Goals") {
+        container.innerHTML = `
+          <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px;">
+            <div class="card"><div class="card-label">Moore Awareness</div><div class="card-metric">58%</div><div class="progress-track" style="height:5px; background:var(--bg-surface); border-radius:999px; margin-top:10px; overflow:hidden;"><div style="background:var(--accent); height:100%; width:58%; border-radius:999px;"></div></div></div>
+            <div class="card"><div class="card-label">NEXA</div><div class="card-metric" style="color:var(--blue);">48%</div><div class="progress-track" style="height:5px; background:var(--bg-surface); border-radius:999px; margin-top:10px; overflow:hidden;"><div style="background:var(--blue); height:100%; width:48%; border-radius:999px;"></div></div></div>
+          </div>
+        `;
+      } else if (name === "Metrics") {
+        container.innerHTML = `
+          <div class="metrics-card">
+            <div class="metrics-row">
+              <div class="card-label" style="margin:0;">Portfolio</div>
+              <div style="color:var(--accent); font-size:0.8rem; font-weight:500;">+1.80% TODAY</div>
+            </div>
+            <div class="metrics-value">$128,730.45</div>
+            <div class="metrics-tickers">
+              <div><span style="color:var(--blue); font-weight:500;">AVEX</span> <span style="color:var(--accent);">+4.21%</span></div>
+              <div><span style="color:var(--blue); font-weight:500;">NVDA</span> <span style="color:var(--accent);">+2.18%</span></div>
+            </div>
+          </div>
+        `;
+      } else if (name === "Notifications") {
+        const list = ["System online", "Backup pending", "New memory indexed: 3 items"].map(n => `<div class="notification-item"><div class="notification-dot"></div><div class="notification-content">${n}</div></div>`).join("");
+        container.innerHTML = `<div class="card"><div class="card-label">Alerts</div>${list}</div>`;
+      } else {
+        container.innerHTML = `<div class="card"><div class="card-label">Coming Soon</div><div style="color:var(--text-secondary);">This section is under development.</div></div>`;
+      }
+    }
+
+    document.getElementById("app-grid").innerHTML = apps.map(a => `<button class="app-tile" data-app="${a.name}"><div class="app-icon">${a.icon}</div><div class="app-label">${a.name}</div></button>`).join("");
+    document.getElementById("app-grid").addEventListener("click", (e) => { const btn = e.target.closest("[data-app]"); if (btn) openApp(btn.dataset.app); });
+    document.getElementById("back").addEventListener("click", goHome);
+    document.querySelectorAll(".dock-item[data-screen]").forEach(b => b.addEventListener("click", () => goHome()));
+    document.querySelectorAll(".dock-item[data-action]").forEach(b => b.addEventListener("click", () => alert("Coming soon")));
+
+    // Login
+    const pwEl = document.getElementById("password");
+    const errorEl = document.getElementById("auth-error");
+    document.getElementById("login").addEventListener("click", async () => {
+      errorEl.textContent = "";
+      const v = pwEl.value || "";
+      const hash = await sha256(v);
+      if (hash === AUTH_HASH) {
+        try {
+          const res = await fetch(API_BASE + "/api/login", {
+            method: "POST",
+            headers: { "content-type": "application/json", "Cache-Control": "no-cache" },
+            credentials: "same-origin",
+            body: JSON.stringify({ password: v }),
+          });
+          const data = await res.json();
+          if (res.status === 200 || (data && data.ok)) {
+            showScreen("home");
+            return;
+          }
+        } catch (e) {
+          console.warn("Login failed", e);
+        }
+        errorEl.textContent = "Access denied";
+        return;
+      }
+      errorEl.textContent = "Access denied";
+    });
+    checkSession();
+  </script>
+</body>
+</html>
