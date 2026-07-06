@@ -44,17 +44,18 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&family=Share+Tech+Mono&display=swap');
 
 :root {
-  --bg-deep: #020404;
-  --bg-surface: #0a1210;
-  --bg-card: #08110e;
-  --text-primary: #d6e6e0;
-  --text-secondary: #b3c9c3;
-  --text-tertiary: #6f8a83;
+  --bg-deep: #01090200;
+  --bg-surface: #0e1714;
+  --bg-card: #0a1210;
+  --text-primary: #e8f3ee;
+  --text-secondary: #cde0d8;
+  --text-tertiary: #8aa89f;
+  --text-muted: #6d8a83;
   --matrix-green: #00ff41;
-  --matrix-dim: rgba(0, 255, 65, 0.25);
-  --matrix-glow: rgba(0, 255, 65, 0.55);
+  --matrix-dim: rgba(0, 255, 65, 0.18);
+  --matrix-glow: rgba(0, 255, 65, 0.45);
   --irobot-blue: #4ac3ff;
-  --irobot-dim: rgba(74, 195, 255, 0.25);
+  --irobot-dim: rgba(74, 195, 255, 0.18);
   --font-tech: 'Orbitron', sans-serif;
   --font-body: 'Rajdhani', sans-serif;
   --font-mono: 'Share Tech Mono', monospace;
@@ -70,18 +71,46 @@ html, body {
   padding: 0;
 }
 
+.block-container, main, div[data-testid="stAppViewContainer"], div[data-testid="stMain"] {
+  background: var(--bg-deep) !important;
+}
+div[data-testid="stVerticalBlock"] {
+  background: transparent !important;
+}
+.stMarkdown, .stText, .stTextInput, .stTextArea, textarea, input {
+  color: var(--text-primary) !important;
+}
+
 .block-container { padding-top: 3.5rem !important; }
 section[data-testid="stSidebar"] {
   background: #030806 !important;
   border-right: 1px solid #12261f !important;
 }
-
+.stRadio > label, .stRadio > div, .stRadio span {
+  color: var(--text-secondary) !important;
+}
+.stTextInput > div > div > input, .stTextArea textarea {
+  background: #0c1512 !important;
+  border: 1px solid #1a3029 !important;
+  color: #e8f3ee !important;
+}
+.stButton > button {
+  background: #0f1e19 !important;
+  color: #e8f3ee !important;
+  border: 1px solid #1f3b31 !important;
+}
+.div.stAlert, .stAlert, [data-testid="stAlert"] {
+  background: #0b1511 !important;
+  border: 1px solid #1f3b31 !important;
+  color: #d4ece5 !important;
+}
 .nexa-card {
   background: var(--bg-card);
-  border: 1px solid #123126;
+  border: 1px solid #1a3029;
   border-radius: 10px;
   padding: 14px 16px;
-  box-shadow: 0 0 14px rgba(0,0,0,0.25) inset;
+  color: var(--text-primary);
+  box-shadow: 0 0 18px rgba(0,0,0,0.35) inset;
 }
 .nexa-label {
   font-family: var(--font-mono);
@@ -90,6 +119,9 @@ section[data-testid="stSidebar"] {
   color: var(--text-tertiary);
   text-transform: uppercase;
   margin-bottom: 8px;
+}
+[data-testid="stSidebar"] .stCaption, .stCaption, caption {
+  color: var(--text-muted) !important;
 }
 .nexa-value { color: var(--text-primary); }
 .nexa-accent { color: var(--matrix-green); }
@@ -121,6 +153,11 @@ section[data-testid="stSidebar"] {
 .hud-top-right { top: 44px; right: 10px; border-width: 2px 2px 0 0; }
 .hud-bottom-left { bottom: 10px; left: 10px; border-width: 0 0 2px 2px; }
 .hud-bottom-right { bottom: 10px; right: 10px; border-width: 0 2px 2px 0; }
+
+/* Force global Streamlit read-through to dark styles */
+[data-testid="stForm"], [data-testid="stVerticalBlock"] > div, [data-testid="stHorizontalBlock"] > div {
+  background: transparent !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -130,7 +167,7 @@ st.markdown("<div class='hud-corner hud-top-left'></div><div class='hud-corner h
 # SIDEBAR
 # ---------------------------
 with st.sidebar:
-    st.markdown("<div style='margin-bottom:0.75rem;'><div style='font-size:1.1rem;font-weight:700;color:#e5e5e5;'>NEXA</div><div style='font-size:0.72rem;color:#555;letter-spacing:0.05em;text-transform:uppercase;margin-top:2px;'>Personal OS</div></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-bottom:0.75rem;'><div style='font-size:1.1rem;font-weight:700;color:#e8f3ee;'>NEXA</div><div style='font-size:0.72rem;color:#8aa89f;letter-spacing:0.05em;text-transform:uppercase;margin-top:2px;'>Personal OS</div></div>", unsafe_allow_html=True)
     st.markdown("---")
     page = st.radio("Navigate", [
         "Today",
