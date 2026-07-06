@@ -191,9 +191,17 @@
     }
 
     .metrics-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
-    .metrics-row { display: flex; justify-content: space-between; align-items: center; }
-    .metrics-value { font-size: 1.6rem; font-weight: 600; color: var(--accent); margin-top: 6px; }
     .metrics-tickers { display: flex; gap: 14px; margin-top: 12px; color: var(--text-secondary); font-size: 0.9rem; }
+
+    /* Ticker */
+    .ticker-wrap { width: 100%; overflow: hidden; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: rgba(8, 12, 15, 0.3); padding: 8px 0; }
+    .ticker-track { display: inline-flex; white-space: nowrap; animation: ticker 35s linear infinite; gap: 28px; padding-left: 14px; }
+    .ticker-item { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-secondary); }
+    .ticker-symbol { color: var(--blue); font-weight: 600; }
+    .ticker-price { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .ticker-change { color: var(--accent); }
+    .ticker-change.down { color: var(--red); }
+    @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
   </style>
 </head>
 <body>
@@ -214,6 +222,11 @@
       <div class="left" id="status-date">...</div>
       <div class="center" id="status-clock">...</div>
       <div class="right"><span class="dot"></span>ONLINE</div>
+    </div>
+    <div id="market-ticker" class="ticker-wrap">
+      <div class="ticker-track" id="ticker-track">
+        <span style="color:var(--text-muted);" id="ticker-fallback">...</span>
+      </div>
     </div>
     <div class="app-shell">
       <div id="home-stats"></div>
@@ -282,6 +295,27 @@
     }
     setInterval(clock, 1000);
     clock();
+
+    const fallbackQuotes = [
+      { symbol: "^GSPC", price: "5,432.41", change: "+1.80%", direction: "up" },
+      { symbol: "^IXIC", price: "17,124.02", change: "+2.15%", direction: "up" },
+      { symbol: "^DJI", price: "39,823.11", change: "+0.94%", direction: "up" },
+      { symbol: "AVEX", price: "482.30", change: "+4.21%", direction: "up" },
+      { symbol: "NVDA", price: "132.41", change: "+2.18%", direction: "up" },
+      { symbol: "AAPL", price: "220.75", change: "-0.42%", direction: "down" },
+      { symbol: "TSLA", price: "178.91", change: "-1.13%", direction: "down" },
+      { symbol: "BTC-USD", price: "108,420.05", change: "+3.04%", direction: "up" },
+    ];
+    function renderTicker(items) {
+      const track = document.getElementById("ticker-track");
+      if (!track) return;
+      const html = items.map(q => {
+        const cls = q.direction === "down" ? "ticker-change down" : "ticker-change";
+        return `<div class="ticker-item"><span class="ticker-symbol">${q.symbol}</span><span class="ticker-price">${q.price}</span><span class="${cls}">${q.change}</span></div>`;
+      }).join("");
+      track.innerHTML = html + html;
+    }
+    renderTicker(fallbackQuotes);
 
     const apps = [
       { name: "Today", icon: "◉" },
