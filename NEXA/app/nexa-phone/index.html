@@ -279,11 +279,27 @@
     async function api(path, method = "GET", body) {
       const res = await fetch(API_BASE + path, {
         method,
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "Cache-Control": "no-cache" },
+        credentials: "same-origin",
         body: body ? JSON.stringify(body) : undefined,
       });
       if (!res.ok) throw new Error("Request failed: " + res.status);
       return res.json();
+    }
+
+    async function checkSession() {
+      try {
+        const data = await api("/api/session");
+        if (data && data.authed) {
+          showScreen("home");
+          return true;
+        }
+      } catch (e) {
+        console.warn("Session check failed", e);
+      }
+      localStorage.removeItem("nexa_auth");
+      showScreen("auth");
+      return false;
     }
 
     async function clock() {
@@ -503,15 +519,27 @@
       const v = pwEl.value || "";
       const hash = await sha256(v);
       if (hash === AUTH_HASH) {
-        localStorage.setItem("nexa_auth", "1");
-        showScreen("home");
+        try {
+          const res = await fetch(API_BASE + "/api/login", {
+            method: "POST",
+            headers: { "content-type": "application/json", "Cache-Control": "no-cache" },
+            credentials: "same-origin",
+            body: JSON.stringify({ password: v }),
+          });
+          const data = await res.json();
+          if (res.status === 200 || (data && data.ok)) {
+            showScreen("home");
+            return;
+          }
+        } catch (e) {
+          console.warn("Login failed", e);
+        }
+        errorEl.textContent = "Access denied";
         return;
       }
       errorEl.textContent = "Access denied";
     });
-    if (localStorage.getItem("nexa_auth") === "1") {
-      showScreen("home");
-    }
+    checkSession();
   </script>
 </body>
 </html>

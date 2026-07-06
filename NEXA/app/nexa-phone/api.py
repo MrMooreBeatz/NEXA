@@ -21,10 +21,34 @@ def write_json(path, data):
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 app = Flask(__name__, static_folder=".", static_url_path="")
-
+app.secret_key = "nexa-local-session-key"
+SESSION_COOKIE_NAME = "nexa_session"
 @app.get("/")
 def index():
     return send_from_directory(BASE, "index.html")
+
+@app.get("/api/health")
+def health():
+    return jsonify({"ok": True})
+
+@app.post("/api/login")
+def login():
+    payload = request.get_json(silent=True) or {}
+    password = payload.get("password", "")
+    h = hashlib.sha256(password.encode("utf-8", errors="ignore")).hexdigest()
+    if h != hashlib.sha256(ACCESS_CODE.encode("utf-8")).hexdigest():
+        return jsonify({"ok": False}), 401
+    session["authed"] = True
+    return jsonify({"ok": True})
+
+@app.get("/api/session")
+def session_status():
+    return jsonify({"authed": bool(session.get("authed"))})
+
+@app.post("/api/logout")
+def logout():
+    session.clear()
+    return jsonify({"ok": True})
 
 @app.get("/api/tasks")
 def tasks_get():
