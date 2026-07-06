@@ -20,6 +20,7 @@
       notes: "/api/notes",
       journal: "/api/journal",
       market: "/api/market",
+      calendar: "/api/calendar",
       messages: "/api/messages",
     };
 
@@ -154,6 +155,58 @@
       }
     }
 
+    async function loadCalendar() {
+      try {
+        const events = await api(API.calendar);
+        renderCalendar(events || []);
+      } catch (e) {
+        console.warn("calendar load failed", e);
+      }
+    }
+
+    function renderCalendar(events) {
+      const list = document.getElementById("calendar-list");
+      if (!list) return;
+      list.innerHTML = "";
+      const sorted = [...events].sort((a, b) => String(a.ts || "").localeCompare(String(b.ts || "")));
+      for (const event of sorted) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08);";
+        const text = document.createElement("div");
+        text.style.cssText = "font-size:13px; color:#e8f5fb;";
+        text.textContent = event.text || "Untitled event";
+        const meta = document.createElement("div");
+        meta.style.cssText = "font-size:11px; color:#6ea8c3;";
+        const ts = event.ts ? new Date(event.ts).toLocaleString() : "";
+        meta.textContent = ts;
+        const del = document.createElement("button");
+        del.textContent = "×";
+        del.title = "Delete";
+        del.style.cssText = "background:transparent; color:#ff8a8a; border:1px solid rgba(255,138,138,0.35); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer;";
+        del.addEventListener("click", async () => {
+          await api(API.calendar, "POST", { action: "delete", id: event.id });
+          await loadCalendar();
+        });
+        row.appendChild(text);
+        row.appendChild(meta);
+        row.appendChild(del);
+        list.appendChild(row);
+      }
+    }
+
+    async function addCalendar() {
+      const input = document.getElementById("calendar-input");
+      const text = (input && input.value || "").trim();
+      if (!text) return;
+      try {
+        await api(API.calendar, "POST", { action: "add", text });
+        if (input) input.value = "";
+        await loadCalendar();
+      } catch (e) {
+        console.warn("calendar add failed", e);
+      }
+    }
+
     function renderChat(messages) {
       const log = document.getElementById("chat-log");
       if (!log) return;
@@ -269,12 +322,20 @@
         setInterval(clock, 1000);
         await loadStatus();
         await loadMessages();
+        await loadCalendar();
       }
       const chatForm = document.getElementById("chat-form");
       if (chatForm) {
         chatForm.addEventListener("submit", async (e) => {
           e.preventDefault();
           await sendChat();
+        });
+      }
+      const calendarForm = document.getElementById("calendar-form");
+      if (calendarForm) {
+        calendarForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          await addCalendar();
         });
       }
     }
@@ -483,21 +544,12 @@
             <div class="module-icon">C</div>
             <span class="metric-title">Calendar</span>
           </div>
-          <div style="margin-top:10px;">
-            <div class="activity-row">
-              <div class="dot ok"></div>
-              <div>
-                <div class="activity-text">Foundations review</div>
-                <div class="activity-meta">Scheduled — Pending confirmation</div>
-              </div>
-            </div>
-            <div class="activity-row">
-              <div class="dot warn"></div>
-              <div>
-                <div class="activity-text">Weekly journal check</div>
-                <div class="activity-meta">Recurring — Next 24 hours</div>
-              </div>
-            </div>
+          <div style="margin-top:10px; display:flex; flex-direction:column; gap:10px;">
+            <div id="calendar-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <form id="calendar-form" style="display:flex; gap:10px; margin-top:4px;">
+              <input id="calendar-input" class="module-input" placeholder="Add event..." autocomplete="off" />
+              <button class="module-btn secondary" style="width:auto; padding:10px 14px;">Add</button>
+            </form>
           </div>
         </div>
 

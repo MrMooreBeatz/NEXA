@@ -1,0 +1,16 @@
+[
+  {
+    "id": "2026-07-06T15:56:42.671573",
+    "role": "user",
+    "text": "wheres your memory stored?",
+    "ts": "2026-07-06T15:56:42.671573",
+    "source": "operator"
+  },
+  {
+    "id": "2026-07-06T15:56:46.628741-a",
+    "role": "assistant",
+    "text": "My memory is stored in the cloud and within my internal systems. This allows me to access and process information quickly and efficiently.",
+    "ts": "2026-07-06T15:56:46.629749",
+    "source": "lm-studio"
+  }
+]

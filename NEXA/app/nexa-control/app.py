@@ -20,6 +20,7 @@ NOTES_FILE = NEXA_DB / "notes.json"
 JOURNAL_FILE = NEXA_DB / "journal.json"
 MARKET_FILE = NEXA_DB / "market.json"
 MESSAGES_FILE = NEXA_DB / "messages.json"
+CALENDAR_FILE = NEXA_DB / "calendar.json"
 LM_STUDIO_URL = "http://127.0.0.1:1234/v1/chat/completions"
 LM_MODEL = "loaded-model"
 
@@ -50,6 +51,7 @@ def status():
     notes = read_json(NOTES_FILE, [])
     journal = read_json(JOURNAL_FILE, [])
     market = read_json(MARKET_FILE, [])
+    calendar = read_json(CALENDAR_FILE, [])
     return jsonify(
         {
             "service": "NEXA Control",
@@ -60,6 +62,7 @@ def status():
                 "notes": len(notes),
                 "journal": len(journal),
                 "quotes": len(market),
+                "calendar": len(calendar),
             },
         }
     )
@@ -163,6 +166,34 @@ def journal_post():
         entries = []
     write_json(JOURNAL_FILE, entries)
     return jsonify(entries)
+
+
+# -------- Calendar --------
+@app.get("/api/calendar")
+def calendar_get():
+    return jsonify(read_json(CALENDAR_FILE, []))
+
+
+@app.post("/api/calendar")
+def calendar_post():
+    payload = request.get_json(silent=True) or {}
+    events = read_json(CALENDAR_FILE, [])
+    action = (payload.get("action") or "").lower()
+    if action == "add" and payload.get("text"):
+        events.append(
+            {
+                "id": datetime.now().isoformat(),
+                "text": payload["text"],
+                "ts": datetime.now().isoformat(),
+            }
+        )
+        write_json(CALENDAR_FILE, events)
+        return jsonify(events)
+    if action == "delete":
+        target = payload.get("id")
+        write_json(CALENDAR_FILE, [e for e in events if str(e.get("id")) != str(target)])
+        return jsonify(read_json(CALENDAR_FILE, []))
+    return jsonify(events)
 
 
 # -------- Market default store --------
