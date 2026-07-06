@@ -25,3 +25,6 @@ uploads/
 !07-operations/memory/.gitkeep
 NEXA/database/*
 !NEXA/database/.gitkeep
+
+# Large local binaries
+_bin/cloudflared.exe
