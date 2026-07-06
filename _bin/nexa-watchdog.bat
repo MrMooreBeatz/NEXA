@@ -1,30 +1,24 @@
 @echo off
 setlocal
-set STARTUP_LOG=C:\Users\Home\moore-awareness\_bin\nexa-startup.log
+set "APP_PORT=8080"
+set "API_DIR=C:\Users\Home\moore-awareness\NEXA\app\nexa-phone"
+set "CFG=C:\Users\Home\.cloudflared\config.yml"
+set "LOG=%API_DIR%\logs\watchdog.log"
+set "PYDIR=C:\Users\Home\AppData\Local\hermes\hermes-agent\venv\Scripts"
+if exist "%PYDIR%\python.exe" (set "PY=%PYDIR%\python.exe") else (set "PY=python")
 
-:: Batch-mode watchdog until Windows Task Scheduler is configured to run alone.
-call C:\Users\Home\moore-awareness\_bin\nexa-startup.bat
-
-goto main
-
-:wait_for_exit
-set P=%1
-set INTERVAL=5
-:check_again
-timeout /t %INTERVAL% /nobreak >nul
-tasklist /FI "PID eq %P%" 2>NUL | find /I /N "%P%" >NUL
-if %ERRORLEVEL% EQU 0 goto check_again
-echo [%date% %time%] Process %P% exited >> "%STARTUP_LOG%"
-goto :eof
-
-:main
-for /f "tokens=2 delims=," %%I in ('tasklist /FI "IMAGENAME eq python.exe" /FO CSV /NH 2^>nul ^| find /I /C "python.exe"') do set PY_COUNT=%%I
-for /f "tokens=2 delims=," %%I in ('tasklist /FI "IMAGENAME eq cloudflared.exe" /FO CSV /NH 2>nul ^| find /I /C "cloudflared.exe"') do set CF_COUNT=%%I
-
-echo [%date% %time%] Watchdog check: python=%PY_COUNT% cloudflared=%CF_COUNT% >> "%STARTUP_LOG%"
-
-if %PY_COUNT%==0 call C:\Users\Home\moore-awareness\_bin\nexa-startup.bat
-if %CF_COUNT%==0 call C:\Users\Home\moore-awareness\_bin\nexa-startup.bat
-
-timeout /t 60 /nobreak >nul
-goto main
+:loop
+  >nul 2>&1 netstat -ano | findstr ':8080.*LISTENING'
+  if errorlevel 1 (
+    echo %date% %time% [NEXA] starting...>>"%LOG%"
+    start "" /B cmd /c ""%PY%" "%API_DIR%\api.py""
+    timeout /t 3 /nobreak >nul
+  )
+  >nul 2>&1 nslookup nexa-dash.mooreawareness.com
+  if errorlevel 1 (
+    echo %date% %time% [CF] starting tunnel...>>"%LOG%"
+    start "" /B cmd /c ""C:\Users\Home\moore-awareness\_bin\cloudflared.exe" tunnel --config "%CFG%" run nexa-dashboard"
+    timeout /t 4 /nobreak >nul
+  )
+  timeout /t 30 /nobreak >nul
+goto loop
