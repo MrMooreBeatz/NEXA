@@ -1,8 +1,7 @@
-import json
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, session, jsonify, request, send_from_directory
-import os, json
+import os, json, traceback
 
 BASE = Path(__file__).resolve().parent
 APP_PATH = BASE / "app"
@@ -12,19 +11,20 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "nexa-control-local-session-key")
 
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
-USE_DB = DATABASE_URL.startswith(("postgresql://", "postgres://"))
+USE_DB = DATABASE_URL.startswith(("postgresql://", "postgres://", "sqlite://"))
 
 _base_auth_hashes = (
     "dde64fbb753a23bae83d7a8e279855e62d8cd8c5fc2305748fe6359fb865df28",
     "e73975ed917ecd161b0495eb8d186c8ee93ccc33caf99dbc9e8c4e829a84870d",
 )
+
 try:
-    _db = None
     if USE_DB:
         from database import get_engine, create_tables
-
         _db = get_engine(DATABASE_URL)
         create_tables(_db)
+    else:
+        _db = None
 except Exception as _db_err:
     print(f"[WARN] DB init skipped: {_db_err}")
     _db = None
@@ -39,8 +39,8 @@ JOURNAL_FILE = NEXA_DB / "journal.json"
 MARKET_FILE = NEXA_DB / "market.json"
 MESSAGES_FILE = NEXA_DB / "messages.json"
 CALENDAR_FILE = NEXA_DB / "calendar.json"
-LM_STUDIO_URL = "http://127.0.0.1:1234/v1/chat/completions"
-LM_MODEL = "loaded-model"
+LM_STUDIO_URL = os.getenv("LM_STUDIO_URL", "http://127.0.0.1:1234/v1/chat/completions")
+LM_MODEL = os.getenv("LM_MODEL", "loaded-model")
 
 
 def read_json(path, default=None):
@@ -58,7 +58,6 @@ def write_json(path, data):
 
 # -------- SQLite persistence --------
 import sqlite3
-from contextlib import closing
 
 DB_PATH = NEXA_DB / "nexa.db"
 
@@ -104,6 +103,50 @@ def migrate_json_to_sqlite_if_needed():
         conn.close()
 
 
+# -------- Database abstraction layer --------
+def _db_get_all(table_name):
+    if not USE_DB or _db is None:
+        return None
+    try:
+        from sqlalchemy.orm import declarative_base  # noqa: F401
+        from sqlalchemy import text
+        with _db.connect() as conn:
+            rows = conn.execute(text(f"SELECT * FROM {table_name} ORDER BY updated_at DESC")).fetchall()
+            return [dict(row._mapping) for row in rows]
+    except Exception:
+        return None
+
+
+def _db_add(table_name, record):
+    if not USE_DB or _db is None:
+        return False
+    try:
+        from sqlalchemy import text
+        now = datetime.now().isoformat()
+        record = {**record, "updated_at": now, "created_at": now}
+        cols = ", ".join(record.keys())
+        placeholders = ", ".join([f":{k}" for k in record.keys()])
+        with _db.connect() as conn:
+            conn.execute(text(f"INSERT INTO {table_name} ({cols}) VALUES ({placeholders})"), record)
+            conn.commit()
+        return True
+    except Exception:
+        return False
+
+
+def _db_delete(table_name, key_name, key_value):
+    if not USE_DB or _db is None:
+        return False
+    try:
+        from sqlalchemy import text
+        with _db.connect() as conn:
+            conn.execute(text(f"DELETE FROM {table_name} WHERE {key_name} = :kv"), {"kv": str(key_value)})
+            conn.commit()
+        return True
+    except Exception:
+        return False
+
+
 # -------- Basic health / status --------
 @app.get("/api/health")
 def health():
@@ -113,25 +156,28 @@ def health():
 
 @app.get("/api/status")
 def status():
-    tasks = read_json(TASKS_FILE, [])
-    notes = read_json(NOTES_FILE, [])
-    journal = read_json(JOURNAL_FILE, [])
-    market = read_json(MARKET_FILE, [])
-    calendar = read_json(CALENDAR_FILE, [])
-    return jsonify(
-        {
-            "service": "NEXA Control",
-            "mode": "online",
-            "time": datetime.now().isoformat(),
-            "counts": {
-                "tasks": len(tasks),
-                "notes": len(notes),
-                "journal": len(journal),
-                "quotes": len(market),
-                "calendar": len(calendar),
-            },
-        }
-    )
+    try:
+        tasks = read_json(TASKS_FILE, [])
+        notes = read_json(NOTES_FILE, [])
+        journal = read_json(JOURNAL_FILE, [])
+        market = read_json(MARKET_FILE, [])
+        calendar = read_json(CALENDAR_FILE, [])
+        return jsonify(
+            {
+                "service": "NEXA Control",
+                "mode": "online",
+                "time": datetime.now().isoformat(),
+                "counts": {
+                    "tasks": len(tasks),
+                    "notes": len(notes),
+                    "journal": len(journal),
+                    "quotes": len(market),
+                    "calendar": len(calendar),
+                },
+            }
+        )
+    except Exception:
+        return jsonify({"service": "NEXA Control", "mode": "degraded", "counts": {}, "error": "status-partial"})
 
 
 # -------- Auth --------
@@ -184,11 +230,13 @@ def tasks_post():
         new_id = max((int(t.get("id", 0)) for t in tasks), default=0) + 1
         tasks.append({"id": new_id, "text": payload.get("text"), "done": False})
         write_json(TASKS_FILE, tasks)
+        _db_add("tasks", {"id": new_id, "text": payload.get("text"), "done": 0})
         return jsonify(tasks)
 
     if action == "delete":
         target = payload.get("id")
         write_json(TASKS_FILE, [t for t in tasks if str(t.get("id")) != str(target)])
+        _db_delete("tasks", "id", target)
         return jsonify(read_json(TASKS_FILE, []))
 
     return jsonify(tasks)
@@ -337,9 +385,6 @@ def messages_post():
 
 def _lm_reply(history):
     try:
-        import urllib.request
-        import urllib.error
-
         trimmed = [m for m in history if m.get("text")][-20:]
         payload = {
             "model": LM_MODEL,
@@ -356,13 +401,13 @@ def _lm_reply(history):
             "temperature": 0.1,
             "max_tokens": 200,
         }
-        req = urllib.request.Request(
+        req = request.Request(
             LM_STUDIO_URL,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=120) as response:
+        with request.urlopen(req, timeout=120) as response:
             body = json.loads(response.read().decode("utf-8"))
         choice = (((body.get("choices") or [{}])[0]).get("message") or {})
         return (choice.get("content") or "No response.").strip()
