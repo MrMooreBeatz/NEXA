@@ -38,6 +38,54 @@ def write_json(path, data):
     path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
 
 
+# -------- SQLite persistence --------
+import sqlite3
+from contextlib import closing
+
+DB_PATH = NEXA_DB / "nexa.db"
+
+
+def db_connect():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
+
+
+def migrate_json_to_sqlite_if_needed():
+    if DB_PATH.exists():
+        return
+    conn = db_connect()
+    try:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS kv (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );"""
+        )
+        json_tables = {
+            "tasks": TASKS_FILE,
+            "notes": NOTES_FILE,
+            "journal": JOURNAL_FILE,
+            "market": MARKET_FILE,
+            "messages": MESSAGES_FILE,
+            "calendar": CALENDAR_FILE,
+        }
+        now = datetime.now().isoformat()
+        with conn:
+            for key, path in json_tables.items():
+                data = read_json(path, [])
+                conn.execute(
+                    "INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)",
+                    (key, json.dumps(data, default=str), now),
+                )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 # -------- Basic health / status --------
 @app.get("/api/health")
 def health():
@@ -310,6 +358,7 @@ def static_proxy(path):
 
 
 def bootstrap():
+    migrate_json_to_sqlite_if_needed()
     ensure_market_file()
 
 
