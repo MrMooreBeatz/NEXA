@@ -21,9 +21,7 @@ JOURNAL_FILE = NEXA_DB / "journal.json"
 MARKET_FILE = NEXA_DB / "market.json"
 MESSAGES_FILE = NEXA_DB / "messages.json"
 LM_STUDIO_URL = "http://127.0.0.1:1234/v1/chat/completions"
-LM_STUDIO_MODELS_URL = "http://127.0.0.1:1234/v1/models"
 LM_MODEL = "loaded-model"
-GITHUB_USER = "MrMooreBeatz"
 
 
 def read_json(path, default=None):
