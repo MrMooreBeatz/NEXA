@@ -2,7 +2,7 @@ from pathlib import Path
 from datetime import datetime
 from flask import Flask, session, jsonify, request, send_from_directory
 from dotenv import load_dotenv
-import os, json, traceback
+import os, json, traceback, hashlib
 
 try:
     from flask_compress import Compress
@@ -31,12 +31,10 @@ Compress(app)
 
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 USE_DB = DATABASE_URL.startswith(("postgresql://", "postgres://", "sqlite://"))
-DASHBOARD_PASSWORD = "2185"
-
-_base_auth_hashes = (
-    "dde64fbb753a23bae83d7a8e279855e62d8cd8c5fc2305748fe6359fb865df28",
-    "7f3c9e2b1a4d6e8f0a2c4b6d8e0f2a4c6b8d0e2f4a6c8e0f2a4c6b8d0e2f4a6c8",  # sha256(DASHBOARD_PASSWORD) fallback
-)
+DASHBOARD_PASSWORD = (os.getenv("DASHBOARD_PASSWORD") or "").strip()
+if not DASHBOARD_PASSWORD:
+    DASHBOARD_PASSWORD = "2185"
+_BASE_AUTH_HASH = hashlib.sha256(DASHBOARD_PASSWORD.encode("utf-8")).hexdigest()
 
 try:
     if USE_DB:
