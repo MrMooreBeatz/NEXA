@@ -277,10 +277,147 @@
       const text = (input && input.value || "").trim();
       if (!text) return;
       try {
-        await api(API.tasks, "POST", { action: "add", text });
+        const typeInput = document.getElementById("task-type");
+        const tagInput = document.getElementById("task-tag");
+        await api(API.tasks, "POST", {
+          action: "add",
+          text,
+          type: typeInput ? typeInput.value : "idea",
+          tag: tagInput ? tagInput.value : "",
+        });
         if (input) input.value = "";
-        await loadStatus();
+        if (tagInput) tagInput.value = "";
+        const tasks = await api(API.tasks);
+        renderTasks(tasks || []);
+        refreshTaskCounts(tasks || []);
       } catch {}
+    }
+
+    function taskTypeLabel(t) {
+      const v = (t && t.type || "idea").toLowerCase();
+      if (v === "task") return "Task";
+      if (v === "note") return "Note";
+      return "Idea";
+    }
+
+    function taskBadgeStyle(type) {
+      const v = (type || "idea").toLowerCase();
+      if (v === "task") return "background:#20d2ea; color:#00111a;";
+      if (v === "note") return "background:#6ea8c3; color:#00111a;";
+      return "background:rgba(255,255,255,0.08); color:#d6eaf5;";
+    }
+
+    function refreshTaskCounts(tasks) {
+      const completed = (tasks || []).filter(t => t.done || t.get && t.get("done")).length;
+      const total = (tasks || []).length;
+      const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+      };
+      setText("tasks-done", `${completed}/${total}`);
+      setText("tasks-rate", total ? `${Math.round((completed/total)*100)}%` : "0%");
+    }
+
+    async function toggleTask(id) {
+      try {
+        await api(API.tasks, "POST", { action: "toggle", id });
+        const tasks = await api(API.tasks);
+        renderTasks(tasks || []);
+        refreshTaskCounts(tasks || []);
+      } catch {}
+    }
+
+    async function deleteTask(id) {
+      try {
+        await api(API.tasks, "POST", { action: "delete", id });
+        const tasks = await api(API.tasks);
+        renderTasks(tasks || []);
+        refreshTaskCounts(tasks || []);
+      } catch {}
+    }
+
+    async function moveTask(id, direction) {
+      try {
+        const tasks = await api(API.tasks);
+        const idx = (tasks || []).findIndex(t => String(t.id) === String(id));
+        if (idx < 0) return;
+        const to = idx + direction;
+        if (to < 0 || to >= tasks.length) return;
+        await api(API.tasks, "POST", { action: "reorder", from_index: idx, to_index: to });
+        const updated = await api(API.tasks);
+        renderTasks(updated || []);
+      } catch {}
+    }
+
+    async function updateTaskMeta(id, field, value) {
+      try {
+        await api(API.tasks, "POST", { action: "update", id, [field]: value });
+        const tasks = await api(API.tasks);
+        renderTasks(tasks || []);
+      } catch {}
+    }
+
+    function renderTasks(tasks) {
+      const list = document.getElementById("task-list");
+      if (!list) return;
+      list.innerHTML = "";
+      const items = Array.isArray(tasks) ? [...tasks] : [];
+      for (let i = 0; i < items.length; i += 1) {
+        const t = items[i];
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08);";
+        const left = document.createElement("div");
+        left.style.cssText = "display:flex; align-items:center; gap:10px; flex:1; min-width:0;";
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.checked = !!t.done;
+        check.style.cssText = "width:16px; height:16px; accent-color:#20d2ea; flex:none; cursor:pointer;";
+        check.addEventListener("change", () => toggleTask(t.id));
+        const main = document.createElement("div");
+        main.style.cssText = "min-width:0; font-size:13px; color:#e8f5fb; word-break:break-word;";
+        main.textContent = t.text || "";
+        const meta = document.createElement("div");
+        meta.style.cssText = "display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap;";
+        const badge = document.createElement("span");
+        badge.textContent = taskTypeLabel(t);
+        badge.style.cssText = `font-size:11px; padding:4px 8px; border-radius:999px; font-weight:600; letter-spacing:0.08em; ${taskBadgeStyle(t.type)}`;
+        meta.appendChild(badge);
+        const tagInput = document.createElement("input");
+        tagInput.value = t.tag || "";
+        tagInput.placeholder = "Tag";
+        tagInput.style.cssText = "font-size:11px; background:#0b1016; color:#e8f5fb; border:1px solid rgba(255,255,255,0.08); border-radius:999px; padding:4px 10px; outline:none;";
+        tagInput.addEventListener("change", () => updateTaskMeta(t.id, "tag", tagInput.value));
+        meta.appendChild(tagInput);
+        left.appendChild(check);
+        left.appendChild(main);
+        const actions = document.createElement("div");
+        actions.style.cssText = "display:flex; gap:6px; flex:none;";
+        const up = document.createElement("button");
+        up.textContent = "↑";
+        up.title = "Move up";
+        up.style.cssText = "background:transparent; color:#6ea8c3; border:1px solid rgba(110,168,195,0.35); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer;";
+        up.addEventListener("click", () => moveTask(t.id, -1));
+        const down = document.createElement("button");
+        down.textContent = "↓";
+        down.title = "Move down";
+        down.style.cssText = "background:transparent; color:#6ea8c3; border:1px solid rgba(110,168,195,0.35); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer;";
+        down.addEventListener("click", () => moveTask(t.id, 1));
+        const del = document.createElement("button");
+        del.textContent = "×";
+        del.title = "Delete";
+        del.style.cssText = "background:transparent; color:#ff8a8a; border:1px solid rgba(255,138,138,0.35); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer;";
+        del.addEventListener("click", () => deleteTask(t.id));
+        actions.appendChild(up);
+        actions.appendChild(down);
+        actions.appendChild(del);
+        const right = document.createElement("div");
+        right.style.cssText = "display:flex; flex-direction:column; gap:6px; align-items:flex-end;";
+        right.appendChild(meta);
+        right.appendChild(actions);
+        row.appendChild(left);
+        row.appendChild(right);
+        list.appendChild(row);
+      }
     }
 
     async function addNote() {
@@ -326,6 +463,9 @@
         clock();
         setInterval(clock, 1000);
         await loadStatus();
+        const tasks = await api(API.tasks).catch(() => []);
+        renderTasks(tasks || []);
+        refreshTaskCounts(tasks || []);
         await loadMessages();
         await loadCalendar();
       }
@@ -480,7 +620,16 @@
           <div style="color:#6ea8c3; font-size:11px; margin-top:6px;" id="tasks-rate">0%</div>
           <div style="margin-top:14px;">
             <input id="new-task" class="module-input" placeholder="Capture an idea..." autocomplete="off" />
-            <button class="module-btn" onclick="addTask()">Add Task</button>
+            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+              <select id="task-type" class="module-input" style="width:auto; padding:10px 10px;">
+                <option value="idea">Idea</option>
+                <option value="task">Task</option>
+                <option value="note">Note</option>
+              </select>
+              <input id="task-tag" class="module-input" placeholder="Tag (optional)" autocomplete="off" />
+              <button class="module-btn" onclick="addTask()">Add Task</button>
+            </div>
+            <div id="task-list" style="margin-top:10px; display:flex; flex-direction:column; gap:8px;"></div>
           </div>
         </div>
 

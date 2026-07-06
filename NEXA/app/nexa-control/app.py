@@ -336,12 +336,62 @@ def tasks_post():
         write_json(TASKS_FILE, updated)
         return jsonify(updated)
 
+    if action == "reorder":
+        idx_from = payload.get("from_index")
+        idx_to = payload.get("to_index")
+        try:
+            idx_from = int(idx_from)
+            idx_to = int(idx_to)
+        except Exception:
+            return jsonify(read_json(TASKS_FILE, []))
+        if 0 <= idx_from < len(tasks) and 0 <= idx_to < len(tasks):
+            item = tasks.pop(idx_from)
+            tasks.insert(idx_to, item)
+            write_json(TASKS_FILE, tasks)
+        return jsonify(read_json(TASKS_FILE, []))
+
     if action == "add" and payload.get("text"):
         new_id = max((int(t.get("id", 0)) for t in tasks), default=0) + 1
-        tasks.append({"id": new_id, "text": payload.get("text"), "done": False})
+        text = (payload.get("text") or "").strip()
+        task_type = (payload.get("type") or "idea").strip().lower()
+        if task_type not in {"idea", "task", "note"}:
+            task_type = "idea"
+        tag = (payload.get("tag") or "").strip()
+        tasks.append({
+            "id": new_id,
+            "text": text,
+            "done": False,
+            "type": task_type,
+            "tag": tag or None,
+            "created_at": datetime.now().isoformat(),
+        })
         write_json(TASKS_FILE, tasks)
-        _db_add("tasks", {"id": new_id, "text": payload.get("text"), "done": 0})
+        _db_add("tasks", {
+            "id": new_id,
+            "text": text,
+            "done": 0,
+            "type": task_type,
+            "tag": tag,
+            "created_at": datetime.now().isoformat(),
+        })
         return jsonify(tasks)
+
+    if action == "update":
+        target = payload.get("id")
+        task = next((t for t in tasks if str(t.get("id")) == str(target)), None)
+        if not task:
+            return jsonify(read_json(TASKS_FILE, []))
+        if "text" in payload and payload.get("text") is not None:
+            task["text"] = payload["text"]
+        if "type" in payload:
+            task_type = (payload["type"] or "").strip().lower()
+            task["type"] = task_type if task_type in {"idea", "task", "note"} else task.get("type", "idea")
+        if "tag" in payload:
+            task["tag"] = (payload["tag"] or "").strip() or None
+        if "done" in payload:
+            task["done"] = bool(payload["done"])
+        write_json(TASKS_FILE, tasks)
+        return jsonify(read_json(TASKS_FILE, []))
 
     if action == "delete":
         target = payload.get("id")
