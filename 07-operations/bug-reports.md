@@ -1,0 +1,2 @@
+# Nexa Bug Reports
+

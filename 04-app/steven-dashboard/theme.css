@@ -1,0 +1,30 @@
+:root {
+  --steve-bg: #0c0d12;
+  --steve-panel: #111318;
+  --steve-border: #1e232d;
+  --steve-text: #e6e9ef;
+  --steve-dim: #8a93a6;
+  --steve-muted: #4d566a;
+  --steve-accent: #5b8cff;
+  --steve-accent-2: #7dd3fc;
+}
+html, body {
+  background: var(--steve-bg) !important;
+  color: var(--steve-text) !important;
+}
+[data-testid="stSidebar"] {
+  background: #0a0b0f !important;
+  border-right: 1px solid var(--steve-border) !important;
+}
+[data-testid="stMetric"] {
+  background: var(--steve-panel) !important;
+  border: 1px solid var(--steve-border) !important;
+  border-radius: 12px !important;
+  padding: 16px !important;
+}
+.stButton > button, .stDownloadButton > button {
+  background: #111318 !important;
+  color: var(--steve-text) !important;
+  border: 1px solid #2a303d !important;
+  border-radius: 10px !important;
+}
