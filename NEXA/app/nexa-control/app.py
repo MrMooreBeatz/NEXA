@@ -108,7 +108,6 @@ def _db_get_all(table_name):
     if not USE_DB or _db is None:
         return None
     try:
-        from sqlalchemy.orm import declarative_base  # noqa: F401
         from sqlalchemy import text
         with _db.connect() as conn:
             rows = conn.execute(text(f"SELECT * FROM {table_name} ORDER BY updated_at DESC")).fetchall()
@@ -145,6 +144,16 @@ def _db_delete(table_name, key_name, key_value):
         return True
     except Exception:
         return False
+
+
+def _pooled_connect():
+    """Prod-only: use a pooled scoped connection when available."""
+    if not USE_DB or _db is None:
+        return None
+    try:
+        return _db.connect()
+    except Exception:
+        return None
 
 
 # -------- Basic health / status --------
@@ -428,6 +437,14 @@ def static_proxy(path):
 def bootstrap():
     migrate_json_to_sqlite_if_needed()
     ensure_market_file()
+
+
+@app.after_request
+def cache_headers(response):
+    if request.path.startswith("/static/"):
+        response.cache_control.max_age = 86400
+        response.cache_control.immutable = True
+    return response
 
 
 if __name__ == "__main__":
