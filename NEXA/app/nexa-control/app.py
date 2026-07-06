@@ -179,25 +179,23 @@ def health():
 @app.get("/api/status")
 def status():
     try:
-        tasks = read_json(TASKS_FILE, [])
-        notes = read_json(NOTES_FILE, [])
-        journal = read_json(JOURNAL_FILE, [])
-        market = read_json(MARKET_FILE, [])
-        calendar = read_json(CALENDAR_FILE, [])
-        return jsonify(
-            {
-                "service": "NEXA Control",
-                "mode": "online",
-                "time": datetime.now().isoformat(),
-                "counts": {
-                    "tasks": len(tasks),
-                    "notes": len(notes),
-                    "journal": len(journal),
-                    "quotes": len(market),
-                    "calendar": len(calendar),
-                },
-            }
-        )
+        payload = {
+            "service": "NEXA Control",
+            "mode": "online",
+            "time": datetime.now().isoformat(),
+            "counts": {
+                "tasks": len(read_json(TASKS_FILE, [])),
+                "notes": len(read_json(NOTES_FILE, [])),
+                "journal": len(read_json(JOURNAL_FILE, [])),
+                "quotes": len(read_json(MARKET_FILE, [])),
+                "calendar": len(read_json(CALENDAR_FILE, [])),
+            },
+        }
+        resp = jsonify(payload)
+        resp.cache_control.max_age = 30
+        resp.cache_control.public = True
+        resp.cache_control.must_revalidate = True
+        return resp
     except Exception:
         return jsonify({"service": "NEXA Control", "mode": "degraded", "counts": {}, "error": "status-partial"})
 
