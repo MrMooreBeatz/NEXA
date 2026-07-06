@@ -34,7 +34,10 @@ USE_DB = DATABASE_URL.startswith(("postgresql://", "postgres://", "sqlite://"))
 DASHBOARD_PASSWORD = (os.getenv("DASHBOARD_PASSWORD") or "").strip()
 if not DASHBOARD_PASSWORD:
     DASHBOARD_PASSWORD = "2185"
-_BASE_AUTH_HASH = hashlib.sha256(DASHBOARD_PASSWORD.encode("utf-8")).hexdigest()
+
+_base_auth_hashes = (
+    hashlib.sha256(DASHBOARD_PASSWORD.encode("utf-8")).hexdigest(),
+)
 
 try:
     if USE_DB:
