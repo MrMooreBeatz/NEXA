@@ -116,11 +116,11 @@
         setText("status-time", data.time ? new Date(data.time).toLocaleTimeString() : "-");
         setText("status-mode", data.mode ? data.mode.toUpperCase() : "ONLINE");
         setText("connectivity-type", "Session");
-        setText("auth-ready", "READY");
+        setText("auth-ready", data.auth_ready || "REQUIRED");
 
         setText("service-title", "NEXA Control");
-        setText("module-status", "Online");
-        setText("connectivity", "Connected");
+        setText("module-status", data.module_status || "Online");
+        setText("connectivity", data.connectivity || "Disconnected");
         setText("tasks-done", completed + "/" + total);
         setText("tasks-rate", pct(completed, total));
         setText("notes-count", (notes || []).length);
@@ -343,6 +343,51 @@
           await addCalendar();
         });
       }
+
+      const statusCard = document.getElementById("nexa-status-card");
+      const statusRefresh = document.getElementById("status-refresh-btn");
+      const statusDiag = document.getElementById("status-diag-btn");
+      if (statusCard && statusRefresh && statusDiag) {
+        statusRefresh.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await loadStatus();
+          const panel = document.getElementById("status-diagnostics");
+          if (panel && panel.style.display !== "none") await renderDiagnostics();
+        });
+        statusDiag.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await toggleDiagnostics();
+        });
+        statusCard.addEventListener("click", async () => {
+          await toggleDiagnostics();
+        });
+      }
+    }
+
+    async function toggleDiagnostics() {
+      const panel = document.getElementById("status-diagnostics");
+      if (!panel) return;
+      const visible = panel.style.display !== "none";
+      panel.style.display = visible ? "none" : "block";
+      if (!visible) await renderDiagnostics();
+    }
+
+    async function renderDiagnostics() {
+      let diag = {};
+      try {
+        diag = (await api(API.status)) || {};
+      } catch {
+        diag = {};
+      }
+      const d = diag.diagnostics || {};
+      const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val ?? "-";
+      };
+      setText("diag-lm-status", (d.lm_studio && d.lm_studio.status) || "unavailable");
+      setText("diag-lm-latency", d.lm_studio && d.lm_studio.latency_ms != null ? `${d.lm_studio.latency_ms} ms` : "-");
+      setText("diag-lm-model", (d.lm_studio && d.lm_studio.model) || "-");
+      setText("diag-db-status", (d.database && d.database.status) || "unknown");
     }
 
     document.addEventListener("DOMContentLoaded", init);
@@ -387,15 +432,29 @@
       <div class="dashboard-grid mt-18">
 
         <!-- 1) NEXA Status -->
-        <div class="module-card">
+        <div class="module-card" style="cursor:pointer;" id="nexa-status-card">
           <div class="module-header">
             <div class="module-icon">◈</div>
             <span class="metric-title">NEXA Status</span>
+            <div style="margin-left:auto; display:flex; gap:8px;">
+              <button class="module-btn secondary" style="width:auto; padding:8px 10px;" id="status-refresh-btn">Refresh</button>
+              <button class="module-btn secondary" style="width:auto; padding:8px 10px;" id="status-diag-btn">Diagnostics</button>
+            </div>
           </div>
           <div class="metric-accent" id="module-status">Online</div>
           <div id="auth-ready" style="color:#6ea8c3; font-size:11px; margin-top:4px;">Auth: ---</div>
           <div id="connectivity" style="color:#6ea8c3; font-size:11px; margin-top:4px;">Connected</div>
           <div style="color:#6ea8c3; font-size:11px; margin-top:4px;" id="time-date">---</div>
+
+          <div id="status-diagnostics" style="display:none; margin-top:12px; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px;">
+            <div style="font-size:11px; color:#7aa7c0; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:6px;">Quick diagnostics</div>
+            <div style="font-size:12px; color:#d6eaf5; line-height:1.55;">
+              <div>LM Studio: <span id="diag-lm-status">-</span> · <span id="diag-lm-latency">-</span></div>
+              <div>Model: <span id="diag-lm-model">-</span></div>
+              <div>Database: <span id="diag-db-status">-</span></div>
+              <div style="margin-top:8px; color:#8aa2b5;">Tip: If LM Studio says unavailable, open LM Studio and load a model, then refresh.</div>
+            </div>
+          </div>
         </div>
 
         <!-- 2) Temporal Anchor -->

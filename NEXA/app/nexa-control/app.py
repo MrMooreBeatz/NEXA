@@ -180,32 +180,88 @@ def _pooled_connect():
 # -------- Basic health / status --------
 @app.get("/api/health")
 def health():
-    now = datetime.now().isoformat()
-    return jsonify({"ok": True, "time": now, "service": "nexa-control"})
+    return jsonify({"ok": True, "service": "NEXA Control", "time": datetime.now().isoformat()})
 
 
 @app.get("/api/status")
 def status():
     try:
-        payload = {
-            "service": "NEXA Control",
-            "mode": "online",
+        try:
+            tasks = read_json(TASKS_FILE, [])
+            notes = read_json(NOTES_FILE, [])
+            journal = read_json(JOURNAL_FILE, [])
+            market = read_json(MARKET_FILE, [])
+            calendar = read_json(CALENDAR_FILE, [])
+            messages = read_json(MESSAGES_FILE, [])
+            tasks_done = len([t for t in tasks if t.get("done") or (t.get("status") or "").lower() == "done"])
+            quotes = len([q for q in market if q.get("symbol")])
+        except Exception as e:
+            tasks = notes = journal = market = calendar = messages = []
+            tasks_done = quotes = 0
+            print(f"[WARN] status read failed: {e}")
+
+        db_ok = False
+        db_path = str(NEXA_DB / "nexa.db")
+        try:
+            with sqlite3.connect(db_path) as conn:
+                conn.execute("SELECT 1")
+            db_ok = True
+        except Exception:
+            db_ok = False
+
+        lm_latency_ms = None
+        lm_status = "unavailable"
+        lm_model = LM_MODEL
+        try:
+            t0 = datetime.now().timestamp()
+            req = request.Request(
+                LM_STUDIO_URL.replace("/v1/chat/completions", "/v1/models"),
+                method="GET",
+                headers={"Accept": "application/json"},
+            )
+            with request.urlopen(req, timeout=4) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            lm_latency_ms = round((datetime.now().timestamp() - t0) * 1000)
+            model_ids = [m.get("id") for m in (body.get("data") or []) if isinstance(m, dict)]
+            lm_status = "online" if model_ids else "empty"
+            if not lm_model and model_ids:
+                lm_model = model_ids[0]
+        except Exception:
+            lm_status = "unavailable"
+
+        auth_ready = "READY" if session.get("authed") else "REQUIRED"
+        return jsonify({
+            "ok": True,
             "time": datetime.now().isoformat(),
+            "mode": "online",
+            "service": "NEXA Control",
+            "auth_ready": auth_ready,
+            "connectivity": "Connected" if lm_status == "online" else "Disconnected",
+            "module_status": "Online",
             "counts": {
-                "tasks": len(read_json(TASKS_FILE, [])),
-                "notes": len(read_json(NOTES_FILE, [])),
-                "journal": len(read_json(JOURNAL_FILE, [])),
-                "quotes": len(read_json(MARKET_FILE, [])),
-                "calendar": len(read_json(CALENDAR_FILE, [])),
+                "tasks": len(tasks),
+                "tasks_done": tasks_done,
+                "notes": len(notes),
+                "journal": len(journal),
+                "quotes": quotes,
+                "calendar": len(calendar),
+                "messages": len(messages),
             },
-        }
-        resp = jsonify(payload)
-        resp.cache_control.max_age = 30
-        resp.cache_control.public = True
-        resp.cache_control.must_revalidate = True
-        return resp
-    except Exception:
-        return jsonify({"service": "NEXA Control", "mode": "degraded", "counts": {}, "error": "status-partial"})
+            "diagnostics": {
+                "lm_studio": {
+                    "status": lm_status,
+                    "model": lm_model,
+                    "latency_ms": lm_latency_ms,
+                },
+                "database": {
+                    "status": "ok" if db_ok else "error",
+                    "path": db_path,
+                },
+            },
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # -------- Auth --------
