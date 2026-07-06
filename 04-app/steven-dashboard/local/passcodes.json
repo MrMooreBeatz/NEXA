@@ -1,0 +1,10 @@
+{
+  "mode": "hardened",
+  "salt": "132d1a75736dd2ce9d93cbf6ea072e15",
+  "hash": "7b35cc01d7743cdef0b890f3965e717c924929bf86117d314583fca43bfc85b5",
+  "iterations": 200000,
+  "algorithm": "pbkdf2_hmac_sha256",
+  "len": 12,
+  "created": "2026-07-06T14:57:14.666909",
+  "updated": "2026-07-06T14:57:14.666909"
+}
