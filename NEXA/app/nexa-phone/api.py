@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, session, jsonify, request, send_from_directory
 from pathlib import Path
 from datetime import datetime
 import json
@@ -22,7 +22,8 @@ def write_json(path, data):
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 app.secret_key = "nexa-local-session-key"
-SESSION_COOKIE_NAME = "nexa_session"
+AUTH_HASH = "dde64fbb753a23bae83d7a8e279855e62d8cd8c5fc2305748fe6359fb865df28"
+
 @app.get("/")
 def index():
     return send_from_directory(BASE, "index.html")
@@ -34,9 +35,10 @@ def health():
 @app.post("/api/login")
 def login():
     payload = request.get_json(silent=True) or {}
-    password = payload.get("password", "")
+    password = payload.get("password", "") or ""
+    import hashlib
     h = hashlib.sha256(password.encode("utf-8", errors="ignore")).hexdigest()
-    if h != hashlib.sha256(ACCESS_CODE.encode("utf-8")).hexdigest():
+    if h != AUTH_HASH:
         return jsonify({"ok": False}), 401
     session["authed"] = True
     return jsonify({"ok": True})
