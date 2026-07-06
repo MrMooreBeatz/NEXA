@@ -8,7 +8,9 @@ APP_PATH = BASE / "app"
 APP_PATH.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
+app.config["JSON_SORT_KEYS"] = False
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "nexa-control-local-session-key")
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
 
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 USE_DB = DATABASE_URL.startswith(("postgresql://", "postgres://", "sqlite://"))
