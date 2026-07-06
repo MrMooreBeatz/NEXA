@@ -21,6 +21,9 @@ app.config["JSON_SORT_KEYS"] = False
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "nexa-control-local-session-key")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
 app.config["COMPRESS_MIN_SIZE"] = 1
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = bool(os.getenv("FLASK_SECURE_COOKIES", ""))
 Compress(app)
 
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
@@ -201,6 +204,20 @@ def status():
 
 
 # -------- Auth --------
+_login_attempts = []
+_MAX_LOGIN_ATTEMPTS = 10
+_LOGIN_WINDOW_SECONDS = 60
+
+
+def _login_rate_limited(remote_addr):
+    now = datetime.now().timestamp()
+    _login_attempts[:] = [t for t in _login_attempts if now - t < _LOGIN_WINDOW_SECONDS]
+    if len(_login_attempts) >= _MAX_LOGIN_ATTEMPTS:
+        return True
+    _login_attempts.append(now)
+    return False
+
+
 @app.get("/api/session")
 def session_status():
     return jsonify({"authed": bool(session.get("authed"))})
@@ -209,6 +226,8 @@ def session_status():
 @app.post("/api/login")
 def login():
     payload = request.get_json(silent=True) or {}
+    if _login_rate_limited(request.remote_addr or "unknown"):
+        return jsonify({"ok": False, "error": "rate_limited"}), 429
     password = (payload.get("password") or "").strip()
     import hashlib
     h = hashlib.sha256(password.encode("utf-8", errors="ignore")).hexdigest()
