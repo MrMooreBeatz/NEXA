@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, session, jsonify, request, send_from_directory
+from dotenv import load_dotenv
 import os, json, traceback
 
 try:
@@ -15,10 +16,11 @@ except Exception:  # pragma: no cover - fallback when package unavailable
 BASE = Path(__file__).resolve().parent
 APP_PATH = BASE / "app"
 APP_PATH.mkdir(parents=True, exist_ok=True)
+load_dotenv(BASE / ".env")
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["JSON_SORT_KEYS"] = False
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "nexa-control-local-session-key")
+app.secret_key = os.getenv("FLASK_SECRET_KEY") or "nexa-control-local-fallback-secret-2026"
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
 app.config["COMPRESS_MIN_SIZE"] = 1
 app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -28,6 +30,7 @@ Compress(app)
 
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 USE_DB = DATABASE_URL.startswith(("postgresql://", "postgres://", "sqlite://"))
+DASHBOARD_PASSWORD = (os.getenv("DASHBOARD_PASSWORD") or "").strip()
 
 _base_auth_hashes = (
     "dde64fbb753a23bae83d7a8e279855e62d8cd8c5fc2305748fe6359fb865df28",
@@ -205,8 +208,8 @@ def status():
 
 # -------- Auth --------
 _login_attempts = []
-_MAX_LOGIN_ATTEMPTS = 10
-_LOGIN_WINDOW_SECONDS = 60
+_MAX_LOGIN_ATTEMPTS = 50
+_LOGIN_WINDOW_SECONDS = 600
 
 
 def _login_rate_limited(remote_addr):
@@ -228,10 +231,18 @@ def login():
     payload = request.get_json(silent=True) or {}
     if _login_rate_limited(request.remote_addr or "unknown"):
         return jsonify({"ok": False, "error": "rate_limited"}), 429
-    password = (payload.get("password") or "").strip()
+    password = (payload.get("password") or "")
+    try:
+        pwd = password.strip() if isinstance(password, str) else ""
+    except Exception:
+        pwd = password or ""
     import hashlib
-    h = hashlib.sha256(password.encode("utf-8", errors="ignore")).hexdigest()
+    h = hashlib.sha256(pwd.encode("utf-8", errors="ignore")).hexdigest()
     if h not in _base_auth_hashes:
+        if DASHBOARD_PASSWORD and pwd == DASHBOARD_PASSWORD:
+            session["authed"] = True
+            session["authed_at"] = datetime.now().isoformat()
+            return jsonify({"ok": True})
         return jsonify({"ok": False}), 401
     session["authed"] = True
     session["authed_at"] = datetime.now().isoformat()
