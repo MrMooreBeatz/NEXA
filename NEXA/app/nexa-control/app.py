@@ -2,15 +2,33 @@ import json
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, session, jsonify, request, send_from_directory
+import os, json
 
 BASE = Path(__file__).resolve().parent
 APP_PATH = BASE / "app"
 APP_PATH.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
-app.secret_key = "nexa-control-local-session-key"
-BASE_AUTH_HASH = "dde64fbb753a23bae83d7a8e279855e62d8cd8c5fc2305748fe6359fb865df28"
-EXTRA_AUTH_HASH = "e73975ed917ecd161b0495eb8d186c8ee93ccc33caf99dbc9e8c4e829a84870d"
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "nexa-control-local-session-key")
+
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+USE_DB = DATABASE_URL.startswith(("postgresql://", "postgres://"))
+
+_base_auth_hashes = (
+    "dde64fbb753a23bae83d7a8e279855e62d8cd8c5fc2305748fe6359fb865df28",
+    "e73975ed917ecd161b0495eb8d186c8ee93ccc33caf99dbc9e8c4e829a84870d",
+)
+try:
+    _db = None
+    if USE_DB:
+        from database import get_engine, create_tables
+
+        _db = get_engine(DATABASE_URL)
+        create_tables(_db)
+except Exception as _db_err:
+    print(f"[WARN] DB init skipped: {_db_err}")
+    _db = None
+    USE_DB = False
 
 # -------- Data stores (local JSON, reuse existing NEXA DB when present) --------
 NEXA_DB = BASE.parent / "database"
@@ -128,7 +146,7 @@ def login():
     password = (payload.get("password") or "").strip()
     import hashlib
     h = hashlib.sha256(password.encode("utf-8", errors="ignore")).hexdigest()
-    if h not in (BASE_AUTH_HASH, EXTRA_AUTH_HASH):
+    if h not in _base_auth_hashes:
         return jsonify({"ok": False}), 401
     session["authed"] = True
     session["authed_at"] = datetime.now().isoformat()
@@ -274,6 +292,11 @@ def market_get():
 def market_reload():
     ensure_market_file()
     return jsonify(read_json(MARKET_FILE, []))
+
+
+@app.get("/api/market/reload")
+def market_reload_get():
+    return market_reload()
 
 
 # -------- Chat / LM Studio --------
