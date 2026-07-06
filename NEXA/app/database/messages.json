@@ -1,0 +1,30 @@
+[
+  {
+    "id": "2026-07-06T15:49:45.174749",
+    "role": "user",
+    "text": "hey nexa",
+    "ts": "2026-07-06T15:49:45.174749",
+    "source": "operator"
+  },
+  {
+    "id": "2026-07-06T15:49:46.637252-a",
+    "role": "assistant",
+    "text": "Hello! How can I assist you today?",
+    "ts": "2026-07-06T15:49:46.637252",
+    "source": "lm-studio"
+  },
+  {
+    "id": "2026-07-06T15:49:58.413300",
+    "role": "user",
+    "text": "who am i?",
+    "ts": "2026-07-06T15:49:58.413300",
+    "source": "operator"
+  },
+  {
+    "id": "2026-07-06T15:50:00.299255-a",
+    "role": "assistant",
+    "text": "To provide accurate information, please provide more context or details about yourself.",
+    "ts": "2026-07-06T15:50:00.299255",
+    "source": "lm-studio"
+  }
+]
